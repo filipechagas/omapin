@@ -9,7 +9,7 @@
 - Token storage (`src-tauri/src/security/token_store.rs`): Linux keyring backed secret management.
 
 ## request flow
-1. User opens quick-add window from Omarchy keybind.
+1. User opens quick-add window from a user-configured launcher/keybind.
 2. URL is pasted or prefilled from clipboard.
 3. UI requests duplicate check and tag suggestions.
 4. Submit sends bookmark to Pinboard (`posts/add`).

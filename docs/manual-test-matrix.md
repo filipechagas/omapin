@@ -23,4 +23,4 @@
 
 ## window behavior
 - Press `Esc`, verify app window hides.
-- Re-open via Omarchy shortcut and verify focus is restored.
+- Re-open via your configured launcher/keybind and verify focus is restored.

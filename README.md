@@ -7,7 +7,7 @@ Keyboard-first Pinboard bookmark capture app built with Rust + Tauri for an Arch
 - URL duplicate check with edit/create intent.
 - Tag suggestions from Pinboard (`posts/suggest`) with `Add all`.
 - Offline queue with retry and queue status.
-- Single-instance behavior for keybind-driven reopen/focus.
+- Single-instance behavior for launcher/keybind-driven reopen/focus.
 
 ## setup
 ```bash
@@ -45,14 +45,14 @@ install -Dm755 ommapin-toggle.sh ~/.local/bin/ommapin-toggle.sh
 
 If you want the binary somewhere else, set `OMMAPIN_BIN` in your shell/session.
 
-## setup keyboard shortcut in omarchy (hyprland)
-Add this to your local Hypr config override:
+## optional keyboard shortcut in omarchy (hyprland)
+ommapin does not register a global shortcut by itself. If you want one, add your own bind in your local Hypr config override:
 
 ```ini
-bind = SUPER, P, exec, ~/.local/bin/ommapin-toggle.sh
+bind = SUPER, <your-key>, exec, ~/.local/bin/ommapin-toggle.sh
 ```
 
-Reload Hyprland and test with `SUPER+P`.
+Reload Hyprland and test with the key you chose.
 
 ## docs
 - `docs/architecture.md`

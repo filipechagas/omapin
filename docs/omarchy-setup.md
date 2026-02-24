@@ -10,14 +10,14 @@ install -Dm755 scripts/ommapin-toggle.sh ~/.local/bin/ommapin-toggle.sh
 
 3. Optional: if binary is elsewhere, set `OMMAPIN_BIN` in your shell/session.
 
-## Hyprland keybind (Omarchy override)
-Add to your local Hypr config override:
+## Optional Hyprland keybind (Omarchy override)
+ommapin does not create any global keybind automatically. Add one only if you want it:
 
 ```ini
-bind = SUPER, P, exec, ~/.local/bin/ommapin-toggle.sh
+bind = SUPER, <your-key>, exec, ~/.local/bin/ommapin-toggle.sh
 ```
 
-Reload Hyprland and test: hitting `SUPER+P` should open/focus ommapin.
+Reload Hyprland and test: your chosen key should open/focus ommapin.
 
 ## behavior notes
 - `Esc` hides the window.
