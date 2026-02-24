@@ -4,20 +4,22 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   BookmarkPayload,
+  ExistingBookmark,
   SubmitIntent,
   checkDuplicate,
   clearToken,
   fetchTagSuggestions,
+  fetchUrlTitle,
   fetchUserTags,
   retryQueueNow,
   saveToken,
   submitBookmark,
 } from "../../lib/tauri";
-import { DedupeBanner } from "../dedupe/DedupeBanner";
 import { QueueStatus } from "../queue/QueueStatus";
 import { TagSuggestions } from "../tags/TagSuggestions";
 import { useBookmarkStore } from "../../state/useBookmarkStore";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const startsLikeUrl = (value: string) => /^https?:\/\//.test(value) || value.includes(".");
 
@@ -36,7 +38,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function QuickAddForm() {
-  const [intent, setIntent] = useState<SubmitIntent>("update");
+  const [intent, setIntent] = useState<SubmitIntent>("create");
   const [tokenInput, setTokenInput] = useState("");
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [existingTagsLoaded, setExistingTagsLoaded] = useState(false);
@@ -44,7 +46,6 @@ export function QuickAddForm() {
   const [submitting, setSubmitting] = useState(false);
   const {
     tokenConfigured,
-    duplicate,
     suggestions,
     queue,
     statusMessage,
@@ -58,6 +59,7 @@ export function QuickAddForm() {
   const {
     register,
     handleSubmit,
+    reset,
     setValue,
     getValues,
     watch,
@@ -79,6 +81,30 @@ export function QuickAddForm() {
       .split(/\s+/)
       .map((tag) => tag.trim())
       .filter(Boolean);
+
+  const resetBookmarkForm = () => {
+    reset({
+      url: "",
+      title: "",
+      notes: "",
+      tags: "",
+      private: false,
+      readLater: false,
+    });
+    setIntent("create");
+    setDuplicate(undefined);
+    setSuggestions(undefined);
+  };
+
+  const applyExistingBookmark = (bookmark: ExistingBookmark, fallbackUrl: string) => {
+    setValue("url", bookmark.url || fallbackUrl, { shouldDirty: true });
+    setValue("title", bookmark.title, { shouldDirty: true });
+    setValue("notes", bookmark.notes, { shouldDirty: true });
+    setValue("tags", bookmark.tags.join(" "), { shouldDirty: true });
+    setValue("private", bookmark.private, { shouldDirty: true });
+    setValue("readLater", bookmark.readLater, { shouldDirty: true });
+    setIntent("update");
+  };
 
   const findTagAutocompleteSuggestion = (input: string) => {
     if (!input.trim() || /\s$/.test(input)) {
@@ -121,19 +147,47 @@ export function QuickAddForm() {
     if (!url || !startsLikeUrl(url)) {
       setDuplicate(undefined);
       setSuggestions(undefined);
+      if (!getValues("title").trim()) {
+        setValue("title", "", { shouldDirty: true });
+      }
       return;
     }
 
-    if (!tokenConfigured) {
-      return;
+    const titleBeforeInspect = getValues("title").trim();
+
+    const [dedupeResult, tagsResult, titleResult] = await Promise.allSettled([
+      tokenConfigured ? checkDuplicate(url) : Promise.resolve(undefined),
+      tokenConfigured ? fetchTagSuggestions(url) : Promise.resolve(undefined),
+      fetchUrlTitle(url),
+    ]);
+
+    let loadedExistingBookmark = false;
+
+    if (dedupeResult.status === "fulfilled" && dedupeResult.value) {
+      setDuplicate(dedupeResult.value);
+      if (dedupeResult.value.exists && dedupeResult.value.bookmark) {
+        applyExistingBookmark(dedupeResult.value.bookmark, url);
+        loadedExistingBookmark = true;
+      } else {
+        setIntent("create");
+      }
+    } else if (dedupeResult.status === "rejected") {
+      setDuplicate(undefined);
+      setStatusMessage(`Could not check duplicate URL yet: ${String(dedupeResult.reason)}`);
     }
 
-    try {
-      const [dedupe, tags] = await Promise.all([checkDuplicate(url), fetchTagSuggestions(url)]);
-      setDuplicate(dedupe);
-      setSuggestions(tags);
-    } catch (error) {
-      setStatusMessage(`Could not inspect URL yet: ${String(error)}`);
+    if (tagsResult.status === "fulfilled") {
+      setSuggestions(tagsResult.value);
+    } else if (tagsResult.status === "rejected") {
+      setSuggestions(undefined);
+      setStatusMessage(`Could not load suggestions yet: ${String(tagsResult.reason)}`);
+    }
+
+    if (!loadedExistingBookmark && titleResult.status === "fulfilled") {
+      const fetchedTitle = titleResult.value?.trim();
+      if (fetchedTitle && !titleBeforeInspect) {
+        setValue("title", fetchedTitle, { shouldDirty: true });
+      }
     }
   };
 
@@ -190,7 +244,7 @@ export function QuickAddForm() {
     return () => {
       window.removeEventListener("focus", onFocus);
     };
-  }, [getValues, setValue]);
+  }, [getValues, setValue, tokenConfigured]);
 
   const onUrlBlur = async () => {
     await inspectUrl(getValues("url"));
@@ -259,18 +313,6 @@ export function QuickAddForm() {
   const tagsInputValue = watch("tags");
   const tabCompletionHint = findTagAutocompleteSuggestion(tagsInputValue ?? "");
 
-  const applyExisting = () => {
-    if (!duplicate?.bookmark) {
-      return;
-    }
-    setValue("title", duplicate.bookmark.title);
-    setValue("notes", duplicate.bookmark.notes);
-    setValue("tags", duplicate.bookmark.tags.join(" "));
-    setValue("private", duplicate.bookmark.private);
-    setValue("readLater", duplicate.bookmark.readLater);
-    setIntent("update");
-  };
-
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
@@ -287,6 +329,11 @@ export function QuickAddForm() {
       const result = await submitBookmark(payload);
       setStatusMessage(result.message);
       await refreshQueue();
+
+      if (!result.queued) {
+        resetBookmarkForm();
+        await getCurrentWindow().hide();
+      }
     } catch (error) {
       setStatusMessage(`Save failed: ${String(error)}`);
     } finally {
@@ -316,8 +363,7 @@ export function QuickAddForm() {
     try {
       await clearToken();
       setTokenConfigured(false);
-      setDuplicate(undefined);
-      setSuggestions(undefined);
+      resetBookmarkForm();
       setStatusMessage("Pinboard token cleared.");
     } catch (error) {
       setStatusMessage(`Failed to clear token: ${String(error)}`);
@@ -376,13 +422,6 @@ export function QuickAddForm() {
 
       {tokenConfigured ? (
         <>
-          <DedupeBanner
-            duplicate={duplicate}
-            onUseExisting={applyExisting}
-            onUpdate={() => setIntent("update")}
-            onCreateNew={() => setIntent("create")}
-          />
-
           <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
             <label>
               URL

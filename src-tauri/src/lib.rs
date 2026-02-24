@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use api::pinboard::PinboardClient;
 use app::commands::{
-    check_duplicate, clear_token, fetch_tag_suggestions, fetch_user_tags, init_session, queue_list,
-    queue_retry_now, save_token, submit_bookmark,
+    check_duplicate, clear_token, fetch_tag_suggestions, fetch_url_title, fetch_user_tags,
+    init_session, queue_list, queue_retry_now, save_token, submit_bookmark,
 };
 use queue::store::QueueStore;
 use security::token_store::TokenStore;
@@ -62,6 +62,7 @@ pub fn run() {
             clear_token,
             fetch_tag_suggestions,
             fetch_user_tags,
+            fetch_url_title,
             check_duplicate,
             submit_bookmark,
             queue_list,

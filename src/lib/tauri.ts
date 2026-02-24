@@ -69,6 +69,7 @@ export const checkDuplicate = (url: string) =>
 export const fetchTagSuggestions = (url: string) =>
   invoke<TagSuggestions>("fetch_tag_suggestions", { url });
 export const fetchUserTags = () => invoke<string[]>("fetch_user_tags");
+export const fetchUrlTitle = (url: string) => invoke<string | null>("fetch_url_title", { url });
 export const submitBookmark = (payload: BookmarkPayload) =>
   invoke<SubmitResult>("submit_bookmark", { payload });
 export const getQueue = () => invoke<QueueItem[]>("queue_list");
