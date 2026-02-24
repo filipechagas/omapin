@@ -8,7 +8,16 @@ use crate::domain::bookmark::{
     normalize_url, parse_tags, BookmarkPayload, DuplicateCheckResult, TagSuggestions,
 };
 use crate::queue::worker::process_due_items;
+use crate::security::token_store::TokenStoreError;
 use crate::AppState;
+
+fn map_token_store_error(error: TokenStoreError) -> String {
+    match error {
+        TokenStoreError::StorageUnavailable(_) =>
+            "System keyring is unavailable or locked. Ensure a Secret Service provider (GNOME Keyring/KWallet) is running and unlocked.".to_string(),
+        other => other.to_string(),
+    }
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,7 +53,7 @@ pub async fn init_session(state: State<'_, Arc<AppState>>) -> Result<SessionInfo
     let token_configured = state
         .token_store
         .get_token()
-        .map_err(|e| e.to_string())?
+        .map_err(map_token_store_error)?
         .is_some();
 
     let queue_stats = state.queue_store.stats().map_err(|e| e.to_string())?;
@@ -65,12 +74,12 @@ pub async fn save_token(state: State<'_, Arc<AppState>>, token: String) -> Resul
     state
         .token_store
         .set_token(clean)
-        .map_err(|e| e.to_string())
+        .map_err(map_token_store_error)
 }
 
 #[tauri::command]
 pub async fn clear_token(state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    state.token_store.clear_token().map_err(|e| e.to_string())
+    state.token_store.clear_token().map_err(map_token_store_error)
 }
 
 #[tauri::command]
@@ -81,7 +90,7 @@ pub async fn fetch_tag_suggestions(
     let token = state
         .token_store
         .get_token()
-        .map_err(|e| e.to_string())?
+        .map_err(map_token_store_error)?
         .ok_or_else(|| "Pinboard token is not set".to_string())?;
 
     let normalized = normalize_url(&url).ok_or_else(|| "Invalid URL".to_string())?;
@@ -97,7 +106,7 @@ pub async fn fetch_user_tags(state: State<'_, Arc<AppState>>) -> Result<Vec<Stri
     let token = state
         .token_store
         .get_token()
-        .map_err(|e| e.to_string())?
+        .map_err(map_token_store_error)?
         .ok_or_else(|| "Pinboard token is not set".to_string())?;
 
     state
@@ -147,7 +156,7 @@ pub async fn submit_bookmark(
     let token = state
         .token_store
         .get_token()
-        .map_err(|e| e.to_string())?
+        .map_err(map_token_store_error)?
         .ok_or_else(|| "Pinboard token is not set".to_string())?;
 
     let mut clean_payload = payload;

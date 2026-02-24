@@ -21,6 +21,11 @@
 - Disable network, submit bookmark, verify queued status.
 - Re-enable network, click `Retry now`, verify queue drains.
 
+## auth token persistence
+- Save a valid token, close and reopen app, verify token remains configured.
+- Save a valid token, reboot system, open app, verify token remains configured and tag suggestions load.
+- Start session without Secret Service keyring available, attempt `Save token`, verify actionable keyring error is shown.
+
 ## window behavior
 - Press `Esc`, verify app window hides.
 - Re-open via your configured launcher/keybind and verify focus is restored.

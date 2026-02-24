@@ -545,7 +545,7 @@ export function QuickAddForm() {
           </div>
           <p>
             {tokenConfigured
-              ? "Update your token or log out. Credentials stay in your system keyring."
+              ? "Update your token or log out. Credentials stay in your desktop keyring (Secret Service)."
               : "Token is required before quick add is enabled."}
           </p>
           <label className="token-label">

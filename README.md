@@ -25,6 +25,8 @@ sudo pacman -S --needed webkit2gtk-4.1 gtk3 libayatana-appindicator base-devel
 
 If Rust build fails with missing `javascriptcoregtk-4.1` or `webkit2gtk-4.1`, these packages are the fix.
 
+ommapin stores auth in the desktop keyring via Secret Service. Ensure a Secret Service provider is running and unlocked in your session (for example `gnome-keyring` or `kwallet`).
+
 ## releases (semver + changelog)
 Releases are automated from commits merged into `master` using Release Please + Conventional Commits.
 

@@ -6,7 +6,7 @@
 - Pinboard API client (`src-tauri/src/api/pinboard.rs`): authenticated requests with rate pacing.
 - Queue store (`src-tauri/src/queue/store.rs`): SQLite persistence for failed submissions.
 - Queue worker (`src-tauri/src/queue/worker.rs`): periodic retry loop and status events.
-- Token storage (`src-tauri/src/security/token_store.rs`): Linux keyring backed secret management.
+- Token storage (`src-tauri/src/security/token_store.rs`): Linux Secret Service backed keyring persistence.
 
 ## request flow
 1. User opens quick-add window from a user-configured launcher/keybind.

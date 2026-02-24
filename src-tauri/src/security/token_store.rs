@@ -1,10 +1,12 @@
-use keyring::Entry;
+use keyring::{Entry, Error as KeyringError};
 
 const SERVICE: &str = "ommapin";
 const USERNAME: &str = "pinboard_auth_token";
 
 #[derive(Debug, thiserror::Error)]
 pub enum TokenStoreError {
+    #[error("system keyring is unavailable or locked (Secret Service): {0}")]
+    StorageUnavailable(String),
     #[error("failed to access keyring: {0}")]
     Keyring(String),
 }
@@ -20,7 +22,7 @@ impl TokenStore {
         Entry::new(SERVICE, USERNAME)
             .map_err(|e| TokenStoreError::Keyring(e.to_string()))?
             .set_password(token)
-            .map_err(|e| TokenStoreError::Keyring(e.to_string()))
+            .map_err(Self::map_keyring_error)
     }
 
     pub fn get_token(&self) -> Result<Option<String>, TokenStoreError> {
@@ -29,8 +31,8 @@ impl TokenStore {
 
         match entry.get_password() {
             Ok(value) => Ok(Some(value)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(err) => Err(TokenStoreError::Keyring(err.to_string())),
+            Err(KeyringError::NoEntry) => Ok(None),
+            Err(err) => Err(Self::map_keyring_error(err)),
         }
     }
 
@@ -39,8 +41,17 @@ impl TokenStore {
             Entry::new(SERVICE, USERNAME).map_err(|e| TokenStoreError::Keyring(e.to_string()))?;
 
         match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(err) => Err(TokenStoreError::Keyring(err.to_string())),
+            Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+            Err(err) => Err(Self::map_keyring_error(err)),
+        }
+    }
+
+    fn map_keyring_error(error: KeyringError) -> TokenStoreError {
+        match error {
+            KeyringError::NoStorageAccess(inner) => {
+                TokenStoreError::StorageUnavailable(inner.to_string())
+            }
+            other => TokenStoreError::Keyring(other.to_string()),
         }
     }
 }
