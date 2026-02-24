@@ -1,6 +1,6 @@
 [package]
 name = "ommapin"
-version = "0.2.0"
+version = "0.2.1"
 description = "Keyboard-first Pinboard capture app for Omarchy"
 authors = ["filipe"]
 edition = "2021"

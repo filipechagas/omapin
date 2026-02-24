@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.0...ommapin-v0.2.1) (2026-02-24)
+
+
+### Bug Fixes
+
+* block releases on failed preflight build ([f5db9e2](https://github.com/filipechagas/omapin/commit/f5db9e28b7dded4e66f924e407f190e24bac9a53))
+* stabilize quick-add autocomplete and tab flow ([ce1fbfe](https://github.com/filipechagas/omapin/commit/ce1fbfe378df603529099f7b6c9889e1e449092e))
+
 ## [0.2.0](https://github.com/filipechagas/omapin/compare/ommapin-v0.1.0...ommapin-v0.2.0) (2026-02-24)
 
 
