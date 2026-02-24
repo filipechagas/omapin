@@ -214,7 +214,18 @@ function App() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        void getCurrentWindow().hide();
+        event.preventDefault();
+        void (async () => {
+          try {
+            await getCurrentWindow().hide();
+          } catch {
+            try {
+              await getCurrentWindow().minimize();
+            } catch {
+              // No-op if window controls are unavailable.
+            }
+          }
+        })();
       }
     };
     window.addEventListener("keydown", onKeyDown);
