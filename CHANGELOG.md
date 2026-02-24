@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.2...ommapin-v0.2.3) (2026-02-24)
+
+
+### Bug Fixes
+
+* build linux release binary with tauri cli ([2126192](https://github.com/filipechagas/omapin/commit/21261929fe5d7adbe2ecaad8d43cb29f3a83680f))
+
 ## [0.2.2](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.1...ommapin-v0.2.2) (2026-02-24)
 
 
