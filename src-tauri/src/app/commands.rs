@@ -86,6 +86,21 @@ pub async fn fetch_tag_suggestions(
 }
 
 #[tauri::command]
+pub async fn fetch_user_tags(state: State<'_, Arc<AppState>>) -> Result<Vec<String>, String> {
+    let token = state
+        .token_store
+        .get_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Pinboard token is not set".to_string())?;
+
+    state
+        .pinboard
+        .get_user_tags(&token)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn check_duplicate(
     state: State<'_, Arc<AppState>>,
     url: String,

@@ -224,6 +224,14 @@ impl PinboardClient {
         })
     }
 
+    pub async fn get_user_tags(&self, token: &str) -> Result<Vec<String>, PinboardError> {
+        let value = self
+            .get_json("tags/get", &[("auth_token", token.to_string())])
+            .await?;
+
+        Ok(extract_user_tags(&value))
+    }
+
     pub async fn get_existing_bookmark(
         &self,
         token: &str,
@@ -414,4 +422,28 @@ fn extract_tag_list(value: &Value, key: &str) -> Vec<String> {
     }
 
     Vec::new()
+}
+
+fn extract_user_tags(value: &Value) -> Vec<String> {
+    let Some(tags_obj) = value.as_object() else {
+        return Vec::new();
+    };
+
+    let mut tags_with_count = tags_obj
+        .iter()
+        .map(|(tag, count)| {
+            let parsed_count = match count {
+                Value::Number(number) => number.as_i64().unwrap_or(0),
+                Value::String(text) => text.parse::<i64>().unwrap_or(0),
+                _ => 0,
+            };
+            (tag.clone(), parsed_count)
+        })
+        .collect::<Vec<_>>();
+
+    tags_with_count.sort_by(|(tag_a, count_a), (tag_b, count_b)| {
+        count_b.cmp(count_a).then_with(|| tag_a.cmp(tag_b))
+    });
+
+    tags_with_count.into_iter().map(|(tag, _)| tag).collect()
 }

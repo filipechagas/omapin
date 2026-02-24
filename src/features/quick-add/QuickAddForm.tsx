@@ -8,6 +8,7 @@ import {
   checkDuplicate,
   clearToken,
   fetchTagSuggestions,
+  fetchUserTags,
   retryQueueNow,
   saveToken,
   submitBookmark,
@@ -37,6 +38,8 @@ type FormValues = z.infer<typeof schema>;
 export function QuickAddForm() {
   const [intent, setIntent] = useState<SubmitIntent>("update");
   const [tokenInput, setTokenInput] = useState("");
+  const [existingTags, setExistingTags] = useState<string[]>([]);
+  const [existingTagsLoaded, setExistingTagsLoaded] = useState(false);
   const [showTokenEditor, setShowTokenEditor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const {
@@ -78,10 +81,6 @@ export function QuickAddForm() {
       .filter(Boolean);
 
   const findTagAutocompleteSuggestion = (input: string) => {
-    if (!suggestions) {
-      return null;
-    }
-
     if (!input.trim() || /\s$/.test(input)) {
       return null;
     }
@@ -94,7 +93,16 @@ export function QuickAddForm() {
 
     const partialLower = partial.toLowerCase();
     const existing = new Set(parts.slice(0, -1).map((tag) => tag.toLowerCase()));
-    const suggestionPool = [...suggestions.recommended, ...suggestions.popular];
+
+    const suggestionPool = Array.from(
+      new Map(
+        [...(suggestions?.recommended ?? []), ...(suggestions?.popular ?? []), ...existingTags].map((tag) => [
+          tag.toLowerCase(),
+          tag,
+        ]),
+      ).values(),
+    );
+
     return (
       suggestionPool.find((tag) => {
         const normalized = tag.trim();
@@ -148,8 +156,28 @@ export function QuickAddForm() {
   useEffect(() => {
     if (!tokenConfigured) {
       setShowTokenEditor(true);
+      setExistingTags([]);
+      setExistingTagsLoaded(false);
     }
   }, [tokenConfigured]);
+
+  useEffect(() => {
+    if (!tokenConfigured || existingTagsLoaded) {
+      return;
+    }
+
+    const loadExistingTags = async () => {
+      try {
+        const tags = await fetchUserTags();
+        setExistingTags(tags);
+        setExistingTagsLoaded(true);
+      } catch {
+        // keep non-blocking; autocomplete still works from URL-specific suggestions
+      }
+    };
+
+    void loadExistingTags();
+  }, [existingTagsLoaded, tokenConfigured]);
 
   useEffect(() => {
     const onFocus = () => {
@@ -275,6 +303,7 @@ export function QuickAddForm() {
     try {
       await saveToken(tokenInput.trim());
       setTokenConfigured(true);
+      setExistingTagsLoaded(false);
       setTokenInput("");
       setShowTokenEditor(false);
       setStatusMessage("Token saved in system keyring.");
