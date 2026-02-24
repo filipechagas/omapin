@@ -7,8 +7,16 @@
       "package-name": "ommapin",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        "src-tauri/Cargo.toml",
-        "src-tauri/tauri.conf.json"
+        {
+          "type": "toml",
+          "path": "src-tauri/Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "src-tauri/tauri.conf.json",
+          "jsonpath": "$.version"
+        }
       ]
     }
   }

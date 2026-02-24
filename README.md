@@ -34,6 +34,8 @@ Releases are automated from commits merged into `master` using Release Please + 
 
 Each release publishes a generated changelog and a Linux `x86_64` build artifact.
 
+If release PR creation is blocked by repository policy, either enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests** or set a `RELEASE_PLEASE_TOKEN` secret (PAT with `repo` scope).
+
 ## install latest linux x86_64 release on omarchy
 ```bash
 curl -fLO https://github.com/filipechagas/omapin/releases/latest/download/ommapin-linux-x86_64.tar.gz
