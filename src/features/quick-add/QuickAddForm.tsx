@@ -162,6 +162,60 @@ export function QuickAddForm() {
     setValue("tags", Array.from(tagMap.values()).join(" "), { shouldDirty: true });
   };
 
+  const tryAutocompleteTag = () => {
+    if (!suggestions) {
+      return false;
+    }
+
+    const current = getValues("tags");
+    if (!current.trim() || /\s$/.test(current)) {
+      return false;
+    }
+
+    const parts = current.split(/\s+/);
+    const partial = parts[parts.length - 1]?.trim();
+    if (!partial) {
+      return false;
+    }
+
+    const partialLower = partial.toLowerCase();
+    const existing = new Set(parts.slice(0, -1).map((tag) => tag.toLowerCase()));
+    const suggestionPool = [...suggestions.recommended, ...suggestions.popular];
+    const match = suggestionPool.find((tag) => {
+      const normalized = tag.trim();
+      const normalizedLower = normalized.toLowerCase();
+      return (
+        normalizedLower.startsWith(partialLower) &&
+        normalizedLower !== partialLower &&
+        !existing.has(normalizedLower)
+      );
+    });
+
+    if (!match) {
+      return false;
+    }
+
+    parts[parts.length - 1] = match;
+    setValue("tags", parts.join(" "), { shouldDirty: true });
+    return true;
+  };
+
+  const onTagsKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      event.key !== "Tab" ||
+      event.shiftKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
+    if (tryAutocompleteTag()) {
+      event.preventDefault();
+    }
+  };
+
   const applyExisting = () => {
     if (!duplicate?.bookmark) {
       return;
@@ -309,7 +363,7 @@ export function QuickAddForm() {
 
             <label>
               Tags
-              <input {...register("tags")} placeholder="tech news rust" />
+              <input {...register("tags")} placeholder="tech news rust" onKeyDown={onTagsKeyDown} />
             </label>
 
             <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
