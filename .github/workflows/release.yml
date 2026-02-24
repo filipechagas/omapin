@@ -12,7 +12,26 @@ permissions:
   pull-requests: write
 
 jobs:
+  preflight:
+    name: preflight build check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify frontend compiles
+        run: |
+          npm ci
+          npm run build
+
   release-please:
+    needs: preflight
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
