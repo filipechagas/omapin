@@ -105,7 +105,7 @@ pub async fn fetch_url_title(url: String) -> Result<Option<String>, String> {
     let normalized = normalize_url(&url).ok_or_else(|| "Invalid URL".to_string())?;
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(4))
         .redirect(reqwest::redirect::Policy::limited(5))
         .build()
         .map_err(|e| e.to_string())?;

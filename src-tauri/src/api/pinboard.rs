@@ -63,19 +63,19 @@ impl PinboardError {
 
 pub struct PinboardClient {
     client: reqwest::Client,
-    last_call: Mutex<Option<Instant>>,
+    last_write_call: Mutex<Option<Instant>>,
 }
 
 impl PinboardClient {
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
-            last_call: Mutex::new(None),
+            last_write_call: Mutex::new(None),
         }
     }
 
-    async fn wait_rate_limit(&self) {
-        let mut guard = self.last_call.lock().await;
+    async fn wait_write_rate_limit(&self) {
+        let mut guard = self.last_write_call.lock().await;
         if let Some(last) = *guard {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_secs(PINBOARD_MIN_INTERVAL_SECS) {
@@ -90,8 +90,6 @@ impl PinboardClient {
         path: &str,
         params: &[(&str, String)],
     ) -> Result<Value, PinboardError> {
-        self.wait_rate_limit().await;
-
         let mut url = Url::parse(&format!("{PINBOARD_BASE}/{path}")).map_err(|_| {
             PinboardError::InvalidResponse {
                 message: "invalid Pinboard URL".to_string(),
@@ -157,6 +155,8 @@ impl PinboardClient {
         token: &str,
         payload: &BookmarkPayload,
     ) -> Result<(), PinboardError> {
+        self.wait_write_rate_limit().await;
+
         let replace = match payload.intent {
             crate::domain::bookmark::SubmitIntent::Create => "no",
             crate::domain::bookmark::SubmitIntent::Update => "yes",

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -44,6 +44,10 @@ export function QuickAddForm() {
   const [existingTagsLoaded, setExistingTagsLoaded] = useState(false);
   const [showTokenEditor, setShowTokenEditor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [initialClipboardLoading, setInitialClipboardLoading] = useState(false);
+  const [inspectLoading, setInspectLoading] = useState(false);
+  const inspectRequestRef = useRef(0);
+  const clipboardPrefillInFlightRef = useRef(false);
   const {
     tokenConfigured,
     suggestions,
@@ -143,12 +147,19 @@ export function QuickAddForm() {
   };
 
   const inspectUrl = async (rawUrl: string) => {
+    const requestId = inspectRequestRef.current + 1;
+    inspectRequestRef.current = requestId;
+    setInspectLoading(true);
+
     const url = rawUrl.trim();
     if (!url || !startsLikeUrl(url)) {
-      setDuplicate(undefined);
-      setSuggestions(undefined);
-      if (!getValues("title").trim()) {
-        setValue("title", "", { shouldDirty: true });
+      if (requestId === inspectRequestRef.current) {
+        setDuplicate(undefined);
+        setSuggestions(undefined);
+        if (!getValues("title").trim()) {
+          setValue("title", "", { shouldDirty: true });
+        }
+        setInspectLoading(false);
       }
       return;
     }
@@ -162,6 +173,10 @@ export function QuickAddForm() {
     ]);
 
     let loadedExistingBookmark = false;
+
+    if (requestId !== inspectRequestRef.current) {
+      return;
+    }
 
     if (dedupeResult.status === "fulfilled" && dedupeResult.value) {
       setDuplicate(dedupeResult.value);
@@ -189,21 +204,31 @@ export function QuickAddForm() {
         setValue("title", fetchedTitle, { shouldDirty: true });
       }
     }
+
+    if (requestId === inspectRequestRef.current) {
+      setInspectLoading(false);
+    }
   };
 
   const tryPrefillFromClipboard = async () => {
-    if (getValues("url").trim()) {
+    if (getValues("url").trim() || clipboardPrefillInFlightRef.current) {
       return;
     }
+
+    clipboardPrefillInFlightRef.current = true;
 
     try {
       const text = (await readText()).trim();
       if (text && startsLikeUrl(text)) {
+        setInitialClipboardLoading(true);
         setValue("url", text, { shouldDirty: true });
         await inspectUrl(text);
       }
     } catch {
       // Clipboard can fail on some setups; manual paste remains available.
+    } finally {
+      setInitialClipboardLoading(false);
+      clipboardPrefillInFlightRef.current = false;
     }
   };
 
@@ -216,7 +241,13 @@ export function QuickAddForm() {
   }, [tokenConfigured]);
 
   useEffect(() => {
-    if (!tokenConfigured || existingTagsLoaded) {
+    if (
+      !tokenConfigured ||
+      existingTagsLoaded ||
+      inspectLoading ||
+      initialClipboardLoading ||
+      clipboardPrefillInFlightRef.current
+    ) {
       return;
     }
 
@@ -231,7 +262,7 @@ export function QuickAddForm() {
     };
 
     void loadExistingTags();
-  }, [existingTagsLoaded, tokenConfigured]);
+  }, [existingTagsLoaded, tokenConfigured, inspectLoading, initialClipboardLoading]);
 
   useEffect(() => {
     const onFocus = () => {
@@ -247,6 +278,9 @@ export function QuickAddForm() {
   }, [getValues, setValue, tokenConfigured]);
 
   const onUrlBlur = async () => {
+    if (initialClipboardLoading) {
+      return;
+    }
     await inspectUrl(getValues("url"));
   };
 
@@ -327,13 +361,19 @@ export function QuickAddForm() {
       };
 
       const result = await submitBookmark(payload);
-      setStatusMessage(result.message);
-      await refreshQueue();
 
       if (!result.queued) {
         resetBookmarkForm();
-        await getCurrentWindow().hide();
+        try {
+          await getCurrentWindow().close();
+        } catch {
+          await getCurrentWindow().hide();
+        }
+        return;
       }
+
+      setStatusMessage(result.message);
+      await refreshQueue();
     } catch (error) {
       setStatusMessage(`Save failed: ${String(error)}`);
     } finally {
@@ -377,6 +417,8 @@ export function QuickAddForm() {
   };
 
   const shouldShowTokenPanel = !tokenConfigured || showTokenEditor;
+  const formLocked = submitting || inspectLoading || initialClipboardLoading;
+  const showSkeleton = tokenConfigured && (initialClipboardLoading || inspectLoading);
 
   return (
     <main className="app-shell">
@@ -422,58 +464,73 @@ export function QuickAddForm() {
 
       {tokenConfigured ? (
         <>
-          <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
-            <label>
-              URL
-              <input
-                {...register("url")}
-                placeholder="https://news.ycombinator.com"
-                onBlur={() => void onUrlBlur()}
-              />
-              {errors.url ? <small>{errors.url.message}</small> : null}
-            </label>
+          {showSkeleton ? (
+            <section className="bookmark-skeleton" aria-live="polite" aria-busy="true">
+              <div className="skeleton-line skeleton-line-title" />
+              <div className="skeleton-line" />
+              <div className="skeleton-line" />
+              <div className="skeleton-line skeleton-line-block" />
+              <div className="skeleton-line" />
+              <p>Fetching title and Pinboard metadata...</p>
+            </section>
+          ) : (
+            <>
+              <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
+                <fieldset className="bookmark-fieldset" disabled={formLocked}>
+                  <label>
+                    URL
+                    <input
+                      {...register("url")}
+                      placeholder="https://news.ycombinator.com"
+                      onBlur={() => void onUrlBlur()}
+                    />
+                    {errors.url ? <small>{errors.url.message}</small> : null}
+                  </label>
 
-            <label>
-              Title
-              <input {...register("title")} placeholder="Hacker News" />
-              {errors.title ? <small>{errors.title.message}</small> : null}
-            </label>
+                  <label>
+                    Title
+                    <input {...register("title")} placeholder="Hacker News" />
+                    {errors.title ? <small>{errors.title.message}</small> : null}
+                  </label>
 
-            <label>
-              Notes
-              <textarea {...register("notes")} rows={4} placeholder="Optional notes" />
-            </label>
+                  <label>
+                    Notes
+                    <textarea {...register("notes")} rows={4} placeholder="Optional notes" />
+                  </label>
 
-            <label>
-              Tags
-              <input {...register("tags")} placeholder="tech news rust" onKeyDown={onTagsKeyDown} />
-              {tabCompletionHint ? (
-                <span className="autocomplete-hint">
-                  Press <kbd>Tab</kbd> to complete <strong>{tabCompletionHint}</strong>
-                </span>
-              ) : null}
-            </label>
+                  <label>
+                    Tags
+                    <input {...register("tags")} placeholder="tech news rust" onKeyDown={onTagsKeyDown} />
+                    {tabCompletionHint ? (
+                      <span className="autocomplete-hint">
+                        Press <kbd>Tab</kbd> to complete <strong>{tabCompletionHint}</strong>
+                      </span>
+                    ) : null}
+                  </label>
 
-            <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
+                  <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
 
-            <div className="boolean-row">
-              <label>
-                <input type="checkbox" {...register("private")} /> private
-              </label>
-              <label>
-                <input type="checkbox" {...register("readLater")} /> read later
-              </label>
-            </div>
+                  <div className="boolean-row">
+                    <label>
+                      <input type="checkbox" {...register("private")} /> private
+                    </label>
+                    <label>
+                      <input type="checkbox" {...register("readLater")} /> read later
+                    </label>
+                  </div>
 
-            <div className="submit-row">
-              <button type="submit" disabled={submitting || !tokenConfigured}>
-                {submitting ? "Saving..." : "Submit"}
-              </button>
-              <span className="intent-pill">intent: {intent}</span>
-            </div>
-          </form>
+                  <div className="submit-row">
+                    <button type="submit" disabled={formLocked || !tokenConfigured}>
+                      {submitting ? "Saving..." : "Submit"}
+                    </button>
+                    <span className="intent-pill">intent: {intent}</span>
+                  </div>
+                </fieldset>
+              </form>
 
-          <QueueStatus queue={queue} onRetry={retryNow} />
+              <QueueStatus queue={queue} onRetry={retryNow} />
+            </>
+          )}
         </>
       ) : null}
 

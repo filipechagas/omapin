@@ -78,6 +78,60 @@ header p {
   gap: 0.75rem;
 }
 
+.bookmark-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.bookmark-fieldset:disabled {
+  opacity: 0.78;
+}
+
+.bookmark-skeleton {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.85rem;
+  box-shadow: 0 6px 20px rgba(38, 31, 22, 0.08);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.skeleton-line {
+  height: 2.2rem;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #efe6d6 0%, #f7f1e6 50%, #efe6d6 100%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton-line-title {
+  width: 72%;
+}
+
+.skeleton-line-block {
+  height: 5.6rem;
+}
+
+.bookmark-skeleton p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
 label {
   display: grid;
   gap: 0.3rem;
