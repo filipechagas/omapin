@@ -47,7 +47,13 @@ export function QuickAddForm() {
   const [submitting, setSubmitting] = useState(false);
   const [initialClipboardLoading, setInitialClipboardLoading] = useState(false);
   const [inspectLoading, setInspectLoading] = useState(false);
+  const [tagsInputFocused, setTagsInputFocused] = useState(false);
+  const [autocompleteDismissed, setAutocompleteDismissed] = useState(false);
+  const [activeAutocompleteIndex, setActiveAutocompleteIndex] = useState(0);
   const inspectRequestRef = useRef(0);
+  const lastInspectedUrlRef = useRef("");
+  const focusTitleAfterInspectRef = useRef(false);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const clipboardPrefillInFlightRef = useRef(false);
   const {
     tokenConfigured,
@@ -82,6 +88,9 @@ export function QuickAddForm() {
     },
   });
 
+  const urlField = register("url");
+  const titleField = register("title");
+
   const getCurrentTags = () =>
     getValues("tags")
       .split(/\s+/)
@@ -100,6 +109,7 @@ export function QuickAddForm() {
     setIntent("create");
     setDuplicate(undefined);
     setSuggestions(undefined);
+    lastInspectedUrlRef.current = "";
   };
 
   const applyExistingBookmark = (bookmark: ExistingBookmark, fallbackUrl: string) => {
@@ -112,15 +122,15 @@ export function QuickAddForm() {
     setIntent("update");
   };
 
-  const findTagAutocompleteSuggestion = (input: string) => {
+  const findTagAutocompleteSuggestions = (input: string) => {
     if (!input.trim() || /\s$/.test(input)) {
-      return null;
+      return [];
     }
 
     const parts = input.split(/\s+/);
     const partial = parts[parts.length - 1]?.trim();
     if (!partial) {
-      return null;
+      return [];
     }
 
     const partialLower = partial.toLowerCase();
@@ -135,8 +145,8 @@ export function QuickAddForm() {
       ).values(),
     );
 
-    return (
-      suggestionPool.find((tag) => {
+    return suggestionPool
+      .filter((tag) => {
         const normalized = tag.trim();
         const normalizedLower = normalized.toLowerCase();
         return (
@@ -144,27 +154,38 @@ export function QuickAddForm() {
           normalizedLower !== partialLower &&
           !existing.has(normalizedLower)
         );
-      }) ?? null
-    );
+      })
+      .slice(0, 8);
   };
 
-  const inspectUrl = async (rawUrl: string) => {
+  const inspectUrl = async (rawUrl: string, options?: { focusTitleAfterInspect?: boolean }) => {
+    const focusTitleAfterInspect = options?.focusTitleAfterInspect ?? false;
     const requestId = inspectRequestRef.current + 1;
     inspectRequestRef.current = requestId;
     setInspectLoading(true);
 
     const url = rawUrl.trim();
     if (!url || !startsLikeUrl(url)) {
+      lastInspectedUrlRef.current = "";
       if (requestId === inspectRequestRef.current) {
         setDuplicate(undefined);
         setSuggestions(undefined);
-        if (!getValues("title").trim()) {
+        if (!url) {
           setValue("title", "", { shouldDirty: true });
+          setValue("notes", "", { shouldDirty: true });
+          setValue("tags", "", { shouldDirty: true });
         }
         setInspectLoading(false);
+        if (focusTitleAfterInspect) {
+          window.requestAnimationFrame(() => {
+            titleInputRef.current?.focus();
+          });
+        }
       }
       return;
     }
+
+    lastInspectedUrlRef.current = url;
 
     const titleBeforeInspect = getValues("title").trim();
 
@@ -209,6 +230,11 @@ export function QuickAddForm() {
 
     if (requestId === inspectRequestRef.current) {
       setInspectLoading(false);
+      if (focusTitleAfterInspect) {
+        window.requestAnimationFrame(() => {
+          titleInputRef.current?.focus();
+        });
+      }
     }
   };
 
@@ -283,7 +309,25 @@ export function QuickAddForm() {
     if (initialClipboardLoading) {
       return;
     }
-    await inspectUrl(getValues("url"));
+
+    const focusTitleAfterInspect = focusTitleAfterInspectRef.current;
+    focusTitleAfterInspectRef.current = false;
+    const currentUrl = getValues("url").trim();
+
+    if (currentUrl === lastInspectedUrlRef.current) {
+      return;
+    }
+
+    await inspectUrl(currentUrl, { focusTitleAfterInspect });
+  };
+
+  const onUrlKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    focusTitleAfterInspectRef.current =
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey;
   };
 
   const appendTag = (tag: string) => {
@@ -317,13 +361,12 @@ export function QuickAddForm() {
     setValue("tags", Array.from(tagMap.values()).join(" "), { shouldDirty: true });
   };
 
-  const tryAutocompleteTag = () => {
-    const current = getValues("tags");
-    const match = findTagAutocompleteSuggestion(current);
+  const autocompleteTag = (match: string | null | undefined) => {
     if (!match) {
       return false;
     }
 
+    const current = getValues("tags");
     const parts = current.split(/\s+/);
     parts[parts.length - 1] = match;
     setValue("tags", `${parts.join(" ")} `, { shouldDirty: true });
@@ -331,24 +374,60 @@ export function QuickAddForm() {
   };
 
   const onTagsKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (
-      event.key !== "Tab" ||
-      event.shiftKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.altKey
-    ) {
+    if (event.key === "Escape" && showTagAutocomplete) {
+      event.preventDefault();
+      event.stopPropagation();
+      setAutocompleteDismissed(true);
       return;
     }
 
-    if (tryAutocompleteTag()) {
+    const autocompleteCount = showTagAutocomplete ? tagAutocompleteOptions.length : 0;
+    if (!autocompleteCount) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveAutocompleteIndex((index) => (index + 1) % autocompleteCount);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveAutocompleteIndex((index) => (index - 1 + autocompleteCount) % autocompleteCount);
+      return;
+    }
+
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    if (event.key !== "Tab" && event.key !== "Enter") {
+      return;
+    }
+
+    const activeMatch = tagAutocompleteOptions[activeAutocompleteIndex] ?? tagAutocompleteOptions[0];
+    if (autocompleteTag(activeMatch)) {
       event.preventDefault();
     }
   };
 
   const tagsInputValue = watch("tags");
-  const tabCompletionHint = findTagAutocompleteSuggestion(tagsInputValue ?? "");
+  const tagAutocompleteOptions = findTagAutocompleteSuggestions(tagsInputValue ?? "");
+  const showTagAutocomplete = tagsInputFocused && !autocompleteDismissed && tagAutocompleteOptions.length > 0;
   const queuedFailures = queue.filter((item) => item.attemptCount > 0).length;
+
+  useEffect(() => {
+    setActiveAutocompleteIndex(0);
+    setAutocompleteDismissed(false);
+  }, [tagsInputValue]);
+
+  useEffect(() => {
+    if (activeAutocompleteIndex < tagAutocompleteOptions.length) {
+      return;
+    }
+    setActiveAutocompleteIndex(0);
+  }, [activeAutocompleteIndex, tagAutocompleteOptions.length]);
 
   const useExistingDuplicate = () => {
     if (!duplicate?.bookmark) {
@@ -508,8 +587,9 @@ export function QuickAddForm() {
                   <label>
                     <span className="field-label">[url]</span>
                     <input
-                      {...register("url")}
+                      {...urlField}
                       placeholder="https://news.ycombinator.com"
+                      onKeyDown={onUrlKeyDown}
                       onBlur={() => void onUrlBlur()}
                     />
                     {errors.url ? <small>{errors.url.message}</small> : null}
@@ -517,7 +597,14 @@ export function QuickAddForm() {
 
                   <label>
                     <span className="field-label">[title]</span>
-                    <input {...register("title")} placeholder="Hacker News" />
+                    <input
+                      {...titleField}
+                      ref={(element) => {
+                        titleField.ref(element);
+                        titleInputRef.current = element;
+                      }}
+                      placeholder="Hacker News"
+                    />
                     {errors.title ? <small>{errors.title.message}</small> : null}
                   </label>
 
@@ -528,12 +615,45 @@ export function QuickAddForm() {
 
                   <label>
                     <span className="field-label">[tags]</span>
-                    <input {...register("tags")} placeholder="tech news rust" onKeyDown={onTagsKeyDown} />
-                    {tabCompletionHint ? (
-                      <span className="autocomplete-hint">
-                        Press <kbd>Tab</kbd> to complete <strong>{tabCompletionHint}</strong>
-                      </span>
-                    ) : null}
+                    <div className="autocomplete-field">
+                      <input
+                        {...register("tags")}
+                        placeholder="tech news rust"
+                        onKeyDown={onTagsKeyDown}
+                        onFocus={() => {
+                          setTagsInputFocused(true);
+                          setAutocompleteDismissed(false);
+                        }}
+                        onBlur={() => {
+                          setTagsInputFocused(false);
+                          setAutocompleteDismissed(false);
+                        }}
+                        aria-autocomplete="list"
+                        aria-expanded={showTagAutocomplete}
+                        aria-controls="tags-autocomplete-list"
+                      />
+                      {showTagAutocomplete ? (
+                        <ul className="autocomplete-menu" id="tags-autocomplete-list" role="listbox">
+                          {tagAutocompleteOptions.map((tag, index) => {
+                            const selected = index === activeAutocompleteIndex;
+                            return (
+                              <li key={tag} role="option" aria-selected={selected}>
+                                <button
+                                  type="button"
+                                  className={`autocomplete-option${selected ? " is-active" : ""}`}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onMouseEnter={() => setActiveAutocompleteIndex(index)}
+                                  onClick={() => autocompleteTag(tag)}
+                                >
+                                  <span>{tag}</span>
+                                  {selected ? <kbd>Tab</kbd> : null}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
                   </label>
 
                   <DedupeBanner
