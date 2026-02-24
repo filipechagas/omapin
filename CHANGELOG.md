@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.1...ommapin-v0.2.2) (2026-02-24)
+
+
+### Bug Fixes
+
+* persist auth token across reboots via Secret Service ([936efce](https://github.com/filipechagas/omapin/commit/936efce419c9baba1a1d5686703000505958b3d0))
+
 ## [0.2.1](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.0...ommapin-v0.2.1) (2026-02-24)
 
 
