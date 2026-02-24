@@ -8,6 +8,7 @@ Keyboard-first Pinboard bookmark capture app built with Rust + Tauri for an Arch
 - Tag suggestions from Pinboard (`posts/suggest`) with `Add all`.
 - Offline queue with retry and queue status.
 - Single-instance behavior for launcher/keybind-driven reopen/focus.
+- Automatically follows the active Omarchy theme colors (when `~/.config/omarchy/current/theme/colors.toml` is present).
 
 ## setup
 ```bash
@@ -44,6 +45,33 @@ install -Dm755 ommapin-toggle.sh ~/.local/bin/ommapin-toggle.sh
 ```
 
 If you want the binary somewhere else, set `OMMAPIN_BIN` in your shell/session.
+
+## optional app launcher entry in omarchy (walker)
+Omarchy's app launcher (`walker`) reads `.desktop` files from `~/.local/share/applications`.
+Create an entry for ommapin:
+
+```bash
+install -d ~/.local/share/applications
+cat > ~/.local/share/applications/ommapin.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ommapin
+Comment=Keyboard-first Pinboard quick add
+Exec=/home/<your-user>/.local/bin/ommapin-toggle.sh
+TryExec=/home/<your-user>/.local/bin/ommapin
+Terminal=false
+Categories=Network;Utility;
+Keywords=bookmark;pinboard;omarchy;
+StartupNotify=false
+EOF
+```
+
+Replace `<your-user>` with your Linux username, then restart launcher indexing:
+
+```bash
+omarchy-restart-walker
+```
 
 ## optional keyboard shortcut in omarchy (hyprland)
 ommapin does not register a global shortcut by itself. If you want one, add your own bind in your local Hypr config override:
