@@ -57,6 +57,7 @@ export function QuickAddForm() {
     handleSubmit,
     setValue,
     getValues,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -76,6 +77,58 @@ export function QuickAddForm() {
       .map((tag) => tag.trim())
       .filter(Boolean);
 
+  const findTagAutocompleteSuggestion = (input: string) => {
+    if (!suggestions) {
+      return null;
+    }
+
+    if (!input.trim() || /\s$/.test(input)) {
+      return null;
+    }
+
+    const parts = input.split(/\s+/);
+    const partial = parts[parts.length - 1]?.trim();
+    if (!partial) {
+      return null;
+    }
+
+    const partialLower = partial.toLowerCase();
+    const existing = new Set(parts.slice(0, -1).map((tag) => tag.toLowerCase()));
+    const suggestionPool = [...suggestions.recommended, ...suggestions.popular];
+    return (
+      suggestionPool.find((tag) => {
+        const normalized = tag.trim();
+        const normalizedLower = normalized.toLowerCase();
+        return (
+          normalizedLower.startsWith(partialLower) &&
+          normalizedLower !== partialLower &&
+          !existing.has(normalizedLower)
+        );
+      }) ?? null
+    );
+  };
+
+  const inspectUrl = async (rawUrl: string) => {
+    const url = rawUrl.trim();
+    if (!url || !startsLikeUrl(url)) {
+      setDuplicate(undefined);
+      setSuggestions(undefined);
+      return;
+    }
+
+    if (!tokenConfigured) {
+      return;
+    }
+
+    try {
+      const [dedupe, tags] = await Promise.all([checkDuplicate(url), fetchTagSuggestions(url)]);
+      setDuplicate(dedupe);
+      setSuggestions(tags);
+    } catch (error) {
+      setStatusMessage(`Could not inspect URL yet: ${String(error)}`);
+    }
+  };
+
   const tryPrefillFromClipboard = async () => {
     if (getValues("url").trim()) {
       return;
@@ -85,6 +138,7 @@ export function QuickAddForm() {
       const text = (await readText()).trim();
       if (text && startsLikeUrl(text)) {
         setValue("url", text, { shouldDirty: true });
+        await inspectUrl(text);
       }
     } catch {
       // Clipboard can fail on some setups; manual paste remains available.
@@ -111,24 +165,7 @@ export function QuickAddForm() {
   }, [getValues, setValue]);
 
   const onUrlBlur = async () => {
-    const url = getValues("url").trim();
-    if (!url || !startsLikeUrl(url)) {
-      setDuplicate(undefined);
-      setSuggestions(undefined);
-      return;
-    }
-
-    if (!tokenConfigured) {
-      return;
-    }
-
-    try {
-      const [dedupe, tags] = await Promise.all([checkDuplicate(url), fetchTagSuggestions(url)]);
-      setDuplicate(dedupe);
-      setSuggestions(tags);
-    } catch (error) {
-      setStatusMessage(`Could not inspect URL yet: ${String(error)}`);
-    }
+    await inspectUrl(getValues("url"));
   };
 
   const appendTag = (tag: string) => {
@@ -163,40 +200,15 @@ export function QuickAddForm() {
   };
 
   const tryAutocompleteTag = () => {
-    if (!suggestions) {
-      return false;
-    }
-
     const current = getValues("tags");
-    if (!current.trim() || /\s$/.test(current)) {
-      return false;
-    }
-
-    const parts = current.split(/\s+/);
-    const partial = parts[parts.length - 1]?.trim();
-    if (!partial) {
-      return false;
-    }
-
-    const partialLower = partial.toLowerCase();
-    const existing = new Set(parts.slice(0, -1).map((tag) => tag.toLowerCase()));
-    const suggestionPool = [...suggestions.recommended, ...suggestions.popular];
-    const match = suggestionPool.find((tag) => {
-      const normalized = tag.trim();
-      const normalizedLower = normalized.toLowerCase();
-      return (
-        normalizedLower.startsWith(partialLower) &&
-        normalizedLower !== partialLower &&
-        !existing.has(normalizedLower)
-      );
-    });
-
+    const match = findTagAutocompleteSuggestion(current);
     if (!match) {
       return false;
     }
 
+    const parts = current.split(/\s+/);
     parts[parts.length - 1] = match;
-    setValue("tags", parts.join(" "), { shouldDirty: true });
+    setValue("tags", `${parts.join(" ")} `, { shouldDirty: true });
     return true;
   };
 
@@ -215,6 +227,9 @@ export function QuickAddForm() {
       event.preventDefault();
     }
   };
+
+  const tagsInputValue = watch("tags");
+  const tabCompletionHint = findTagAutocompleteSuggestion(tagsInputValue ?? "");
 
   const applyExisting = () => {
     if (!duplicate?.bookmark) {
@@ -364,6 +379,11 @@ export function QuickAddForm() {
             <label>
               Tags
               <input {...register("tags")} placeholder="tech news rust" onKeyDown={onTagsKeyDown} />
+              {tabCompletionHint ? (
+                <span className="autocomplete-hint">
+                  Press <kbd>Tab</kbd> to complete <strong>{tabCompletionHint}</strong>
+                </span>
+              ) : null}
             </label>
 
             <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />

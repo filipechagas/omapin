@@ -117,6 +117,32 @@ small {
   color: var(--warning);
 }
 
+.autocomplete-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+
+.autocomplete-hint kbd {
+  border: 1px solid #b9ac97;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0.03rem 0.38rem;
+  background: #fff8eb;
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.autocomplete-hint strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 button {
   border: 1px solid #b9ac97;
   border-radius: 8px;
