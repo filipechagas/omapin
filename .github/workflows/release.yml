@@ -84,8 +84,7 @@ jobs:
       - name: Build app for Linux x86_64
         run: |
           npm ci
-          npm run build
-          cargo build --manifest-path src-tauri/Cargo.toml --release --target x86_64-unknown-linux-gnu
+          npm run tauri -- build --target x86_64-unknown-linux-gnu --no-bundle --ci
 
       - name: Package release assets
         run: |
