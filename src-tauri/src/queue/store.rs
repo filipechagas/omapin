@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::domain::bookmark::BookmarkPayload;
 use crate::infra::db::{database_path, open_db};
 
+const MIN_QUEUE_DELAY_SECS: i64 = 3;
+const MAX_RETRY_ATTEMPTS: i64 = 12;
+
 #[derive(Debug, thiserror::Error)]
 pub enum QueueStoreError {
     #[error("db error: {0}")]
@@ -43,15 +46,21 @@ impl QueueStore {
         Ok(Self { db_path })
     }
 
-    pub fn enqueue(&self, payload: &BookmarkPayload, err: &str) -> Result<(), QueueStoreError> {
+    pub fn enqueue(
+        &self,
+        payload: &BookmarkPayload,
+        err: &str,
+        initial_delay_secs: i64,
+    ) -> Result<(), QueueStoreError> {
         let conn = open_db(&self.db_path).map_err(|e| QueueStoreError::Db(e.to_string()))?;
         let now = now_unix();
+        let next_attempt = now + initial_delay_secs.max(MIN_QUEUE_DELAY_SECS);
         let payload_json =
             serde_json::to_string(payload).map_err(|e| QueueStoreError::Serde(e.to_string()))?;
         conn.execute(
             "INSERT INTO queue_items(payload_json, status, attempt_count, next_attempt_at, last_error, created_at, updated_at)
              VALUES(?1, 'pending', 0, ?2, ?3, ?2, ?2)",
-            params![payload_json, now, err],
+            params![payload_json, next_attempt, err],
         )
         .map_err(|e| QueueStoreError::Db(e.to_string()))?;
         Ok(())
@@ -105,17 +114,36 @@ impl QueueStore {
         Ok(())
     }
 
-    pub fn mark_retry(&self, id: i64, attempts: i64, err: &str) -> Result<(), QueueStoreError> {
+    pub fn mark_retry(
+        &self,
+        id: i64,
+        attempts: i64,
+        err: &str,
+        retry_after_secs: Option<i64>,
+    ) -> Result<(), QueueStoreError> {
         let conn = open_db(&self.db_path).map_err(|e| QueueStoreError::Db(e.to_string()))?;
         let now = now_unix();
-        let next_attempt = now + backoff_seconds(attempts + 1);
-        conn.execute(
-            "UPDATE queue_items
-             SET attempt_count = ?1, next_attempt_at = ?2, updated_at = ?3, last_error = ?4
-             WHERE id = ?5",
-            params![attempts + 1, next_attempt, now, err, id],
-        )
-        .map_err(|e| QueueStoreError::Db(e.to_string()))?;
+        let next_attempt_count = attempts + 1;
+
+        if next_attempt_count >= MAX_RETRY_ATTEMPTS {
+            conn.execute(
+                "UPDATE queue_items
+                 SET status = 'failed', attempt_count = ?1, updated_at = ?2, last_error = ?3
+                 WHERE id = ?4",
+                params![next_attempt_count, now, err, id],
+            )
+            .map_err(|e| QueueStoreError::Db(e.to_string()))?;
+        } else {
+            let next_attempt = now + retry_delay_seconds(next_attempt_count, retry_after_secs);
+            conn.execute(
+                "UPDATE queue_items
+                 SET attempt_count = ?1, next_attempt_at = ?2, updated_at = ?3, last_error = ?4
+                 WHERE id = ?5",
+                params![next_attempt_count, next_attempt, now, err, id],
+            )
+            .map_err(|e| QueueStoreError::Db(e.to_string()))?;
+        }
+
         Ok(())
     }
 
@@ -131,7 +159,7 @@ impl QueueStore {
 
         let failed = conn
             .query_row(
-                "SELECT COUNT(*) FROM queue_items WHERE status = 'pending' AND attempt_count > 0",
+                "SELECT COUNT(*) FROM queue_items WHERE status = 'failed' OR (status = 'pending' AND attempt_count > 0)",
                 [],
                 |row| row.get::<_, i64>(0),
             )
@@ -167,12 +195,17 @@ fn map_row(row: &Row<'_>) -> rusqlite::Result<QueueItem> {
 
 pub fn backoff_seconds(attempt: i64) -> i64 {
     match attempt {
-        0 | 1 => 10,
-        2 => 30,
-        3 => 120,
-        4 => 600,
+        0 | 1 => 15,
+        2 => 45,
+        3 => 180,
+        4 => 900,
         _ => 3600,
     }
+}
+
+pub fn retry_delay_seconds(attempt: i64, retry_after_override: Option<i64>) -> i64 {
+    let base = backoff_seconds(attempt).max(MIN_QUEUE_DELAY_SECS);
+    retry_after_override.unwrap_or(0).max(base)
 }
 
 fn now_unix() -> i64 {
@@ -184,12 +217,18 @@ fn now_unix() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::backoff_seconds;
+    use super::{backoff_seconds, retry_delay_seconds};
 
     #[test]
     fn backoff_is_bounded() {
-        assert_eq!(backoff_seconds(1), 10);
-        assert_eq!(backoff_seconds(4), 600);
+        assert_eq!(backoff_seconds(1), 15);
+        assert_eq!(backoff_seconds(4), 900);
         assert_eq!(backoff_seconds(20), 3600);
+    }
+
+    #[test]
+    fn retry_delay_respects_retry_after_override() {
+        assert_eq!(retry_delay_seconds(1, Some(120)), 120);
+        assert_eq!(retry_delay_seconds(3, Some(5)), 180);
     }
 }

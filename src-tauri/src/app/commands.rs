@@ -116,15 +116,26 @@ pub async fn submit_bookmark(
             queued: false,
         }),
         Err(err) => {
-            state
-                .queue_store
-                .enqueue(&clean_payload, &err.to_string())
-                .map_err(|e| e.to_string())?;
-            Ok(SubmitResult {
-                status: "queued".to_string(),
-                message: format!("Saved offline queue: {err}"),
-                queued: true,
-            })
+            if err.is_retryable() {
+                let retry_after = err.retry_after_secs().unwrap_or(15);
+                state
+                    .queue_store
+                    .enqueue(&clean_payload, &err.message_for_user(), retry_after)
+                    .map_err(|e| e.to_string())?;
+                Ok(SubmitResult {
+                    status: "queued".to_string(),
+                    message: format!(
+                        "Pinboard unavailable right now. Queued for retry: {}",
+                        err.message_for_user()
+                    ),
+                    queued: true,
+                })
+            } else {
+                Err(format!(
+                    "Pinboard rejected bookmark: {}",
+                    err.message_for_user()
+                ))
+            }
         }
     }
 }

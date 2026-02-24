@@ -44,6 +44,18 @@ header h1 {
   letter-spacing: 0.02em;
 }
 
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.app-header button {
+  align-self: center;
+}
+
 header p {
   margin: 0.25rem 0 0;
   color: var(--muted);
@@ -134,9 +146,13 @@ button:disabled {
 }
 
 .token-actions {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.token-actions input {
+  flex: 1 1 280px;
 }
 
 .submit-row {
@@ -253,6 +269,6 @@ button:disabled {
   }
 
   .token-actions {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }

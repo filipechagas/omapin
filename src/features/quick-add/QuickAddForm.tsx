@@ -37,6 +37,7 @@ type FormValues = z.infer<typeof schema>;
 export function QuickAddForm() {
   const [intent, setIntent] = useState<SubmitIntent>("update");
   const [tokenInput, setTokenInput] = useState("");
+  const [showTokenEditor, setShowTokenEditor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const {
     tokenConfigured,
@@ -74,6 +75,12 @@ export function QuickAddForm() {
       .split(/\s+/)
       .map((tag) => tag.trim())
       .filter(Boolean);
+
+  useEffect(() => {
+    if (!tokenConfigured) {
+      setShowTokenEditor(true);
+    }
+  }, [tokenConfigured]);
 
   useEffect(() => {
     const preloadClipboard = async () => {
@@ -187,6 +194,7 @@ export function QuickAddForm() {
       await saveToken(tokenInput.trim());
       setTokenConfigured(true);
       setTokenInput("");
+      setShowTokenEditor(false);
       setStatusMessage("Token saved in system keyring.");
     } catch (error) {
       setStatusMessage(`Failed to save token: ${String(error)}`);
@@ -211,85 +219,108 @@ export function QuickAddForm() {
     await refreshQueue();
   };
 
+  const shouldShowTokenPanel = !tokenConfigured || showTokenEditor;
+
   return (
     <main className="app-shell">
-      <header>
-        <h1>ommapin</h1>
-        <p>Quick save to Pinboard from your Omarchy workflow.</p>
+      <header className="app-header">
+        <div>
+          <h1>ommapin</h1>
+          <p>Quick save to Pinboard from your Omarchy workflow.</p>
+        </div>
+        {tokenConfigured ? (
+          <button type="button" onClick={() => setShowTokenEditor((value) => !value)}>
+            {showTokenEditor ? "Close settings" : "Settings"}
+          </button>
+        ) : null}
       </header>
 
-      <section className="token-panel">
-        <div>
-          <strong>Pinboard token</strong>
-          <p>{tokenConfigured ? "Token is configured" : "Token is required to submit bookmarks"}</p>
-        </div>
-        <div className="token-actions">
-          <input
-            value={tokenInput}
-            onChange={(event) => setTokenInput(event.target.value)}
-            placeholder="username:TOKEN"
-          />
-          <button type="button" onClick={() => void persistToken()}>
-            Save token
-          </button>
-          {tokenConfigured ? (
-            <button type="button" onClick={() => void removeToken()}>
-              Clear
+      {shouldShowTokenPanel ? (
+        <section className="token-panel">
+          <div>
+            <strong>Pinboard token</strong>
+            <p>
+              {tokenConfigured
+                ? "Update your token or log out."
+                : "Token is required before quick add is enabled."}
+            </p>
+          </div>
+          <div className="token-actions">
+            <input
+              value={tokenInput}
+              onChange={(event) => setTokenInput(event.target.value)}
+              placeholder="username:TOKEN"
+            />
+            <button type="button" onClick={() => void persistToken()}>
+              Save token
             </button>
-          ) : null}
-        </div>
-      </section>
+            {tokenConfigured ? (
+              <button type="button" onClick={() => void removeToken()}>
+                Logout
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
-      <DedupeBanner
-        duplicate={duplicate}
-        onUseExisting={applyExisting}
-        onUpdate={() => setIntent("update")}
-        onCreateNew={() => setIntent("create")}
-      />
+      {tokenConfigured ? (
+        <>
+          <DedupeBanner
+            duplicate={duplicate}
+            onUseExisting={applyExisting}
+            onUpdate={() => setIntent("update")}
+            onCreateNew={() => setIntent("create")}
+          />
 
-      <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
-        <label>
-          URL
-          <input {...register("url")} placeholder="https://news.ycombinator.com" onBlur={() => void onUrlBlur()} />
-          {errors.url ? <small>{errors.url.message}</small> : null}
-        </label>
+          <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
+            <label>
+              URL
+              <input
+                {...register("url")}
+                placeholder="https://news.ycombinator.com"
+                onBlur={() => void onUrlBlur()}
+              />
+              {errors.url ? <small>{errors.url.message}</small> : null}
+            </label>
 
-        <label>
-          Title
-          <input {...register("title")} placeholder="Hacker News" />
-          {errors.title ? <small>{errors.title.message}</small> : null}
-        </label>
+            <label>
+              Title
+              <input {...register("title")} placeholder="Hacker News" />
+              {errors.title ? <small>{errors.title.message}</small> : null}
+            </label>
 
-        <label>
-          Notes
-          <textarea {...register("notes")} rows={4} placeholder="Optional notes" />
-        </label>
+            <label>
+              Notes
+              <textarea {...register("notes")} rows={4} placeholder="Optional notes" />
+            </label>
 
-        <label>
-          Tags
-          <input {...register("tags")} placeholder="tech news rust" />
-        </label>
+            <label>
+              Tags
+              <input {...register("tags")} placeholder="tech news rust" />
+            </label>
 
-        <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
+            <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
 
-        <div className="boolean-row">
-          <label>
-            <input type="checkbox" {...register("private")} /> private
-          </label>
-          <label>
-            <input type="checkbox" {...register("readLater")} /> read later
-          </label>
-        </div>
+            <div className="boolean-row">
+              <label>
+                <input type="checkbox" {...register("private")} /> private
+              </label>
+              <label>
+                <input type="checkbox" {...register("readLater")} /> read later
+              </label>
+            </div>
 
-        <div className="submit-row">
-          <button type="submit" disabled={submitting || !tokenConfigured}>
-            {submitting ? "Saving..." : "Submit"}
-          </button>
-          <span className="intent-pill">intent: {intent}</span>
-        </div>
-      </form>
+            <div className="submit-row">
+              <button type="submit" disabled={submitting || !tokenConfigured}>
+                {submitting ? "Saving..." : "Submit"}
+              </button>
+              <span className="intent-pill">intent: {intent}</span>
+            </div>
+          </form>
 
-      <QueueStatus queue={queue} onRetry={retryNow} />
+          <QueueStatus queue={queue} onRetry={retryNow} />
+        </>
+      ) : null}
 
       {statusMessage ? <p className="status-message">{statusMessage}</p> : null}
     </main>
