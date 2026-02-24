@@ -20,17 +20,17 @@ export function DedupeBanner({
   return (
     <section className="dedupe-banner">
       <p>
-        Existing bookmark found: <strong>{duplicate.bookmark.title || duplicate.bookmark.url}</strong>
+        Duplicate found for this URL: <strong>{duplicate.bookmark.title || duplicate.bookmark.url}</strong>
       </p>
       <div className="dedupe-actions">
         <button type="button" onClick={onUseExisting}>
-          Use existing data
+          Load existing
         </button>
         <button type="button" onClick={onUpdate}>
-          Update existing
+          Keep update mode
         </button>
         <button type="button" onClick={onCreateNew}>
-          Create new
+          Force create
         </button>
       </div>
     </section>

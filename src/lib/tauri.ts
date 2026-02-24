@@ -61,6 +61,11 @@ export interface QueueRetryResult {
   remaining: number;
 }
 
+export interface OmarchyTheme {
+  name: string;
+  colors: Record<string, string>;
+}
+
 export const initSession = () => invoke<SessionInfo>("init_session");
 export const saveToken = (token: string) => invoke<void>("save_token", { token });
 export const clearToken = () => invoke<void>("clear_token");
@@ -74,3 +79,4 @@ export const submitBookmark = (payload: BookmarkPayload) =>
   invoke<SubmitResult>("submit_bookmark", { payload });
 export const getQueue = () => invoke<QueueItem[]>("queue_list");
 export const retryQueueNow = () => invoke<QueueRetryResult>("queue_retry_now");
+export const getOmarchyTheme = () => invoke<OmarchyTheme | null>("get_omarchy_theme");

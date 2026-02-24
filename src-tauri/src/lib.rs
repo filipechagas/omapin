@@ -11,7 +11,7 @@ use std::sync::Arc;
 use api::pinboard::PinboardClient;
 use app::commands::{
     check_duplicate, clear_token, fetch_tag_suggestions, fetch_url_title, fetch_user_tags,
-    init_session, queue_list, queue_retry_now, save_token, submit_bookmark,
+    get_omarchy_theme, init_session, queue_list, queue_retry_now, save_token, submit_bookmark,
 };
 use queue::store::QueueStore;
 use security::token_store::TokenStore;
@@ -67,6 +67,7 @@ pub fn run() {
             submit_bookmark,
             queue_list,
             queue_retry_now,
+            get_omarchy_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ommapin");

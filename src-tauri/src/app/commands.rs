@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, env, fs, path::PathBuf, sync::Arc, time::Duration};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -30,6 +30,13 @@ pub struct SubmitResult {
 pub struct QueueRetryResult {
     pub sent: usize,
     pub remaining: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmarchyTheme {
+    pub name: String,
+    pub colors: BTreeMap<String, String>,
 }
 
 #[tauri::command]
@@ -200,6 +207,42 @@ pub async fn queue_retry_now(
     Ok(QueueRetryResult { sent, remaining })
 }
 
+#[tauri::command]
+pub async fn get_omarchy_theme() -> Result<Option<OmarchyTheme>, String> {
+    let config_root = env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            env::var("HOME")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .map(|home| PathBuf::from(home).join(".config"))
+        })
+        .ok_or_else(|| "Could not resolve config directory".to_string())?;
+
+    let current_dir = config_root.join("omarchy/current");
+    let theme_name_path = current_dir.join("theme.name");
+    let colors_path = current_dir.join("theme/colors.toml");
+
+    if !theme_name_path.exists() || !colors_path.exists() {
+        return Ok(None);
+    }
+
+    let name = fs::read_to_string(theme_name_path)
+        .map_err(|e| e.to_string())?
+        .trim()
+        .to_string();
+    let colors_raw = fs::read_to_string(colors_path).map_err(|e| e.to_string())?;
+    let colors = parse_omarchy_colors(&colors_raw);
+
+    if name.is_empty() || colors.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(OmarchyTheme { name, colors }))
+}
+
 fn extract_html_title(html: &str) -> Option<String> {
     let start_title = find_ascii_case_insensitive(html, "<title")?;
     let start_content = html[start_title..].find('>')? + start_title + 1;
@@ -248,4 +291,33 @@ fn decode_html_entities(value: &str) -> String {
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&amp;", "&")
+}
+
+fn parse_omarchy_colors(raw: &str) -> BTreeMap<String, String> {
+    let mut colors = BTreeMap::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if let Some((key, value)) = trimmed.split_once('=') {
+            let clean_key = key.trim();
+            let clean_value = value.trim().trim_matches('"');
+
+            if clean_key.is_empty() || clean_value.is_empty() {
+                continue;
+            }
+
+            if clean_value.starts_with('#')
+                && (clean_value.len() == 7 || clean_value.len() == 9)
+                && clean_value.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
+            {
+                colors.insert(clean_key.to_string(), clean_value.to_string());
+            }
+        }
+    }
+
+    colors
 }

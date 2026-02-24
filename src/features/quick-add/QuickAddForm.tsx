@@ -15,6 +15,7 @@ import {
   saveToken,
   submitBookmark,
 } from "../../lib/tauri";
+import { DedupeBanner } from "../dedupe/DedupeBanner";
 import { QueueStatus } from "../queue/QueueStatus";
 import { TagSuggestions } from "../tags/TagSuggestions";
 import { useBookmarkStore } from "../../state/useBookmarkStore";
@@ -50,6 +51,7 @@ export function QuickAddForm() {
   const clipboardPrefillInFlightRef = useRef(false);
   const {
     tokenConfigured,
+    duplicate,
     suggestions,
     queue,
     statusMessage,
@@ -346,6 +348,15 @@ export function QuickAddForm() {
 
   const tagsInputValue = watch("tags");
   const tabCompletionHint = findTagAutocompleteSuggestion(tagsInputValue ?? "");
+  const queuedFailures = queue.filter((item) => item.attemptCount > 0).length;
+
+  const useExistingDuplicate = () => {
+    if (!duplicate?.bookmark) {
+      return;
+    }
+
+    applyExistingBookmark(duplicate.bookmark, getValues("url").trim() || duplicate.bookmark.url);
+  };
 
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
@@ -423,38 +434,55 @@ export function QuickAddForm() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
+        <div className="title-block">
+          <p className="app-path">~/omarchy/quick-add</p>
           <h1>ommapin</h1>
-          <p>Quick save to Pinboard from your Omarchy workflow.</p>
+          <p className="app-subtitle">Pinboard capture tuned for a keyboard-first Linux workflow.</p>
         </div>
-        {tokenConfigured ? (
-          <button type="button" onClick={() => setShowTokenEditor((value) => !value)}>
-            {showTokenEditor ? "Close settings" : "Settings"}
-          </button>
-        ) : null}
+        <div className="header-controls">
+          <div className="session-strip" role="status" aria-label="session status">
+            <span>
+              <kbd>Esc</kbd> hide
+            </span>
+            <span>queue {queue.length}</span>
+            <span>failed {queuedFailures}</span>
+            <span>mode {intent}</span>
+          </div>
+          {tokenConfigured ? (
+            <button type="button" onClick={() => setShowTokenEditor((value) => !value)}>
+              {showTokenEditor ? "Close settings" : "Settings"}
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {shouldShowTokenPanel ? (
         <section className="token-panel">
-          <div>
-            <strong>Pinboard token</strong>
-            <p>
-              {tokenConfigured
-                ? "Update your token or log out."
-                : "Token is required before quick add is enabled."}
-            </p>
+          <div className="panel-title-row">
+            <strong>Auth // Pinboard token</strong>
+            <span className={`panel-badge ${tokenConfigured ? "ok" : "warn"}`}>
+              {tokenConfigured ? "configured" : "missing"}
+            </span>
           </div>
-          <div className="token-actions">
+          <p>
+            {tokenConfigured
+              ? "Update your token or log out. Credentials stay in your system keyring."
+              : "Token is required before quick add is enabled."}
+          </p>
+          <label className="token-label">
+            token
             <input
               value={tokenInput}
               onChange={(event) => setTokenInput(event.target.value)}
               placeholder="username:TOKEN"
             />
-            <button type="button" onClick={() => void persistToken()}>
+          </label>
+          <div className="token-actions">
+            <button type="button" className="button-primary" onClick={() => void persistToken()}>
               Save token
             </button>
             {tokenConfigured ? (
-              <button type="button" onClick={() => void removeToken()}>
+              <button type="button" className="button-danger" onClick={() => void removeToken()}>
                 Logout
               </button>
             ) : null}
@@ -471,14 +499,14 @@ export function QuickAddForm() {
               <div className="skeleton-line" />
               <div className="skeleton-line skeleton-line-block" />
               <div className="skeleton-line" />
-              <p>Fetching title and Pinboard metadata...</p>
+              <p>Inspecting URL, loading title, and pulling Pinboard metadata...</p>
             </section>
           ) : (
             <>
               <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
                 <fieldset className="bookmark-fieldset" disabled={formLocked}>
                   <label>
-                    URL
+                    <span className="field-label">[url]</span>
                     <input
                       {...register("url")}
                       placeholder="https://news.ycombinator.com"
@@ -488,18 +516,18 @@ export function QuickAddForm() {
                   </label>
 
                   <label>
-                    Title
+                    <span className="field-label">[title]</span>
                     <input {...register("title")} placeholder="Hacker News" />
                     {errors.title ? <small>{errors.title.message}</small> : null}
                   </label>
 
                   <label>
-                    Notes
+                    <span className="field-label">[notes]</span>
                     <textarea {...register("notes")} rows={4} placeholder="Optional notes" />
                   </label>
 
                   <label>
-                    Tags
+                    <span className="field-label">[tags]</span>
                     <input {...register("tags")} placeholder="tech news rust" onKeyDown={onTagsKeyDown} />
                     {tabCompletionHint ? (
                       <span className="autocomplete-hint">
@@ -508,22 +536,31 @@ export function QuickAddForm() {
                     ) : null}
                   </label>
 
+                  <DedupeBanner
+                    duplicate={duplicate}
+                    onUseExisting={useExistingDuplicate}
+                    onUpdate={() => setIntent("update")}
+                    onCreateNew={() => setIntent("create")}
+                  />
+
                   <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
 
                   <div className="boolean-row">
-                    <label>
-                      <input type="checkbox" {...register("private")} /> private
+                    <label className="toggle-option">
+                      <input type="checkbox" {...register("private")} />
+                      <span>private</span>
                     </label>
-                    <label>
-                      <input type="checkbox" {...register("readLater")} /> read later
+                    <label className="toggle-option">
+                      <input type="checkbox" {...register("readLater")} />
+                      <span>read later</span>
                     </label>
                   </div>
 
                   <div className="submit-row">
-                    <button type="submit" disabled={formLocked || !tokenConfigured}>
-                      {submitting ? "Saving..." : "Submit"}
+                    <button type="submit" className="button-primary" disabled={formLocked || !tokenConfigured}>
+                      {submitting ? "Saving..." : "Write bookmark"}
                     </button>
-                    <span className="intent-pill">intent: {intent}</span>
+                    <span className="intent-pill">intent {intent === "update" ? ":: update" : ":: create"}</span>
                   </div>
                 </fieldset>
               </form>
