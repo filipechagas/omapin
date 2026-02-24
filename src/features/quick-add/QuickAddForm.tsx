@@ -76,6 +76,21 @@ export function QuickAddForm() {
       .map((tag) => tag.trim())
       .filter(Boolean);
 
+  const tryPrefillFromClipboard = async () => {
+    if (getValues("url").trim()) {
+      return;
+    }
+
+    try {
+      const text = (await readText()).trim();
+      if (text && startsLikeUrl(text)) {
+        setValue("url", text, { shouldDirty: true });
+      }
+    } catch {
+      // Clipboard can fail on some setups; manual paste remains available.
+    }
+  };
+
   useEffect(() => {
     if (!tokenConfigured) {
       setShowTokenEditor(true);
@@ -83,18 +98,16 @@ export function QuickAddForm() {
   }, [tokenConfigured]);
 
   useEffect(() => {
-    const preloadClipboard = async () => {
-      try {
-        const text = (await readText()).trim();
-        if (text && startsLikeUrl(text) && !getValues("url")) {
-          setValue("url", text, { shouldDirty: true });
-        }
-      } catch {
-        // Clipboard can fail on some setups; manual paste remains available.
-      }
+    const onFocus = () => {
+      void tryPrefillFromClipboard();
     };
 
-    void preloadClipboard();
+    void tryPrefillFromClipboard();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+    };
   }, [getValues, setValue]);
 
   const onUrlBlur = async () => {
