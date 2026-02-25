@@ -11,12 +11,10 @@ import {
   fetchTagSuggestions,
   fetchUrlTitle,
   fetchUserTags,
-  retryQueueNow,
   saveToken,
   submitBookmark,
 } from "../../lib/tauri";
 import { DedupeBanner } from "../dedupe/DedupeBanner";
-import { QueueStatus } from "../queue/QueueStatus";
 import { TagSuggestions } from "../tags/TagSuggestions";
 import { useBookmarkStore } from "../../state/useBookmarkStore";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -59,7 +57,6 @@ export function QuickAddForm() {
     tokenConfigured,
     duplicate,
     suggestions,
-    queue,
     statusMessage,
     setDuplicate,
     setSuggestions,
@@ -415,7 +412,6 @@ export function QuickAddForm() {
   const tagsInputValue = watch("tags");
   const tagAutocompleteOptions = findTagAutocompleteSuggestions(tagsInputValue ?? "");
   const showTagAutocomplete = tagsInputFocused && !autocompleteDismissed && tagAutocompleteOptions.length > 0;
-  const queuedFailures = queue.filter((item) => item.attemptCount > 0).length;
 
   useEffect(() => {
     setActiveAutocompleteIndex(0);
@@ -500,12 +496,6 @@ export function QuickAddForm() {
     }
   };
 
-  const retryNow = async () => {
-    const result = await retryQueueNow();
-    setStatusMessage(`Retried queue: sent ${result.sent}, remaining ${result.remaining}`);
-    await refreshQueue();
-  };
-
   const shouldShowTokenPanel = !tokenConfigured || showTokenEditor;
   const formLocked = submitting || inspectLoading || initialClipboardLoading;
   const showSkeleton = tokenConfigured && (initialClipboardLoading || inspectLoading);
@@ -523,8 +513,6 @@ export function QuickAddForm() {
             <span>
               <kbd>Esc</kbd> hide
             </span>
-            <span>queue {queue.length}</span>
-            <span>failed {queuedFailures}</span>
             <span>mode {intent}</span>
           </div>
           {tokenConfigured ? (
@@ -684,8 +672,6 @@ export function QuickAddForm() {
                   </div>
                 </fieldset>
               </form>
-
-              <QueueStatus queue={queue} onRetry={retryNow} />
             </>
           )}
         </>
