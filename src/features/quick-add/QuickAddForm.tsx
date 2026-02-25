@@ -22,6 +22,25 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const startsLikeUrl = (value: string) => /^https?:\/\//.test(value) || value.includes(".");
 
+const isHttpUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const logInspectTiming = (stage: string, startedAt: number, details?: string) => {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  const elapsedMs = Math.round(performance.now() - startedAt);
+  const suffix = details ? ` (${details})` : "";
+  console.debug(`[inspect] ${stage}: ${elapsedMs}ms${suffix}`);
+};
+
 const schema = z.object({
   url: z
     .string()
@@ -157,6 +176,7 @@ export function QuickAddForm() {
 
   const inspectUrl = async (rawUrl: string, options?: { focusTitleAfterInspect?: boolean }) => {
     const focusTitleAfterInspect = options?.focusTitleAfterInspect ?? false;
+    const inspectStartedAt = performance.now();
     const requestId = inspectRequestRef.current + 1;
     inspectRequestRef.current = requestId;
     setInspectLoading(true);
@@ -185,44 +205,71 @@ export function QuickAddForm() {
     lastInspectedUrlRef.current = url;
 
     const titleBeforeInspect = getValues("title").trim();
-
-    const [dedupeResult, tagsResult, titleResult] = await Promise.allSettled([
-      tokenConfigured ? checkDuplicate(url) : Promise.resolve(undefined),
-      tokenConfigured ? fetchTagSuggestions(url) : Promise.resolve(undefined),
-      fetchUrlTitle(url),
-    ]);
-
     let loadedExistingBookmark = false;
+    const dedupeStartedAt = performance.now();
+    const tagsStartedAt = performance.now();
+    const titleStartedAt = performance.now();
 
-    if (requestId !== inspectRequestRef.current) {
-      return;
-    }
+    const titlePromise = fetchUrlTitle(url);
+    const dedupePromise = tokenConfigured ? checkDuplicate(url) : Promise.resolve(undefined);
+    const tagsPromise = tokenConfigured ? fetchTagSuggestions(url) : Promise.resolve(undefined);
 
-    if (dedupeResult.status === "fulfilled" && dedupeResult.value) {
-      setDuplicate(dedupeResult.value);
-      if (dedupeResult.value.exists && dedupeResult.value.bookmark) {
-        applyExistingBookmark(dedupeResult.value.bookmark, url);
-        loadedExistingBookmark = true;
-      } else {
-        setIntent("create");
-      }
-    } else if (dedupeResult.status === "rejected") {
-      setDuplicate(undefined);
-      setStatusMessage(`Could not check duplicate URL yet: ${String(dedupeResult.reason)}`);
-    }
+    void dedupePromise
+      .then((dedupeResult) => {
+        logInspectTiming("dedupe", dedupeStartedAt, dedupeResult?.exists ? "exists" : "new");
 
-    if (tagsResult.status === "fulfilled") {
-      setSuggestions(tagsResult.value);
-    } else if (tagsResult.status === "rejected") {
-      setSuggestions(undefined);
-      setStatusMessage(`Could not load suggestions yet: ${String(tagsResult.reason)}`);
-    }
+        if (requestId !== inspectRequestRef.current || !dedupeResult) {
+          return;
+        }
 
-    if (!loadedExistingBookmark && titleResult.status === "fulfilled") {
-      const fetchedTitle = titleResult.value?.trim();
-      if (fetchedTitle && !titleBeforeInspect) {
-        setValue("title", fetchedTitle, { shouldDirty: true });
-      }
+        setDuplicate(dedupeResult);
+        if (dedupeResult.exists && dedupeResult.bookmark) {
+          applyExistingBookmark(dedupeResult.bookmark, url);
+          loadedExistingBookmark = true;
+        } else {
+          setIntent("create");
+        }
+      })
+      .catch((error) => {
+        logInspectTiming("dedupe failed", dedupeStartedAt);
+
+        if (requestId !== inspectRequestRef.current) {
+          return;
+        }
+
+        setDuplicate(undefined);
+        setStatusMessage(`Could not check duplicate URL yet: ${String(error)}`);
+      });
+
+    void tagsPromise
+      .then((tagsResult) => {
+        logInspectTiming(
+          "tags",
+          tagsStartedAt,
+          tagsResult
+            ? `${tagsResult.recommended.length} recommended, ${tagsResult.popular.length} popular`
+            : "skipped",
+        );
+
+        if (requestId !== inspectRequestRef.current) {
+          return;
+        }
+
+        setSuggestions(tagsResult);
+      })
+      .catch((error) => {
+        logInspectTiming("tags failed", tagsStartedAt);
+
+        if (requestId !== inspectRequestRef.current) {
+          return;
+        }
+
+        setSuggestions(undefined);
+        setStatusMessage(`Could not load suggestions yet: ${String(error)}`);
+      });
+
+    if (requestId === inspectRequestRef.current) {
+      await Promise.allSettled([dedupePromise, tagsPromise]);
     }
 
     if (requestId === inspectRequestRef.current) {
@@ -233,6 +280,26 @@ export function QuickAddForm() {
         });
       }
     }
+
+    void titlePromise
+      .then((fetchedTitleRaw) => {
+        logInspectTiming("title", titleStartedAt, fetchedTitleRaw ? "found" : "empty");
+
+        if (requestId !== inspectRequestRef.current || loadedExistingBookmark) {
+          return;
+        }
+
+        const fetchedTitle = fetchedTitleRaw?.trim();
+        if (fetchedTitle && !titleBeforeInspect) {
+          setValue("title", fetchedTitle, { shouldDirty: true });
+        }
+      })
+      .catch(() => {
+        logInspectTiming("title failed", titleStartedAt);
+        // keep non-blocking; user can still enter a title manually
+      });
+
+    logInspectTiming("inspect complete", inspectStartedAt);
   };
 
   const tryPrefillFromClipboard = async () => {
@@ -244,7 +311,7 @@ export function QuickAddForm() {
 
     try {
       const text = (await readText()).trim();
-      if (text && startsLikeUrl(text)) {
+      if (text && isHttpUrl(text)) {
         setInitialClipboardLoading(true);
         setValue("url", text, { shouldDirty: true });
         await inspectUrl(text);

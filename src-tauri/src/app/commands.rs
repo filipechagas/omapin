@@ -1,4 +1,10 @@
-use std::{collections::BTreeMap, env, fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    env, fs,
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -10,6 +16,18 @@ use crate::domain::bookmark::{
 use crate::queue::worker::process_due_items;
 use crate::security::token_store::TokenStoreError;
 use crate::AppState;
+
+static TITLE_FETCH_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn title_fetch_client() -> &'static reqwest::Client {
+    TITLE_FETCH_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(4))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
+}
 
 fn map_token_store_error(error: TokenStoreError) -> String {
     match error {
@@ -120,13 +138,7 @@ pub async fn fetch_user_tags(state: State<'_, Arc<AppState>>) -> Result<Vec<Stri
 pub async fn fetch_url_title(url: String) -> Result<Option<String>, String> {
     let normalized = normalize_url(&url).ok_or_else(|| "Invalid URL".to_string())?;
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(4))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let response = client
+    let response = title_fetch_client()
         .get(normalized)
         .send()
         .await

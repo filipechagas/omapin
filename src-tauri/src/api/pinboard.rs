@@ -8,6 +8,7 @@ use crate::domain::bookmark::{BookmarkPayload, ExistingBookmark, TagSuggestions}
 
 const PINBOARD_BASE: &str = "https://api.pinboard.in/v1";
 const PINBOARD_MIN_INTERVAL_SECS: u64 = 3;
+const PINBOARD_READ_TIMEOUT_SECS: u64 = 4;
 const DEFAULT_RETRY_AFTER_SECS: i64 = 30;
 
 #[derive(Debug, thiserror::Error)]
@@ -89,6 +90,7 @@ impl PinboardClient {
         &self,
         path: &str,
         params: &[(&str, String)],
+        timeout: Option<Duration>,
     ) -> Result<Value, PinboardError> {
         let mut url = Url::parse(&format!("{PINBOARD_BASE}/{path}")).map_err(|_| {
             PinboardError::InvalidResponse {
@@ -103,9 +105,12 @@ impl PinboardClient {
             }
         }
 
-        let response = self
-            .client
-            .get(url)
+        let mut request = self.client.get(url);
+        if let Some(timeout) = timeout {
+            request = request.timeout(timeout);
+        }
+
+        let response = request
             .send()
             .await
             .map_err(|e| PinboardError::Network {
@@ -190,6 +195,7 @@ impl PinboardClient {
                         },
                     ),
                 ],
+                None,
             )
             .await?;
 
@@ -213,6 +219,7 @@ impl PinboardClient {
             .get_json(
                 "posts/suggest",
                 &[("auth_token", token.to_string()), ("url", url.to_string())],
+                Some(Duration::from_secs(PINBOARD_READ_TIMEOUT_SECS)),
             )
             .await?;
 
@@ -226,7 +233,11 @@ impl PinboardClient {
 
     pub async fn get_user_tags(&self, token: &str) -> Result<Vec<String>, PinboardError> {
         let value = self
-            .get_json("tags/get", &[("auth_token", token.to_string())])
+            .get_json(
+                "tags/get",
+                &[("auth_token", token.to_string())],
+                Some(Duration::from_secs(PINBOARD_READ_TIMEOUT_SECS)),
+            )
             .await?;
 
         Ok(extract_user_tags(&value))
@@ -241,6 +252,7 @@ impl PinboardClient {
             .get_json(
                 "posts/get",
                 &[("auth_token", token.to_string()), ("url", url.to_string())],
+                Some(Duration::from_secs(PINBOARD_READ_TIMEOUT_SECS)),
             )
             .await?;
 
