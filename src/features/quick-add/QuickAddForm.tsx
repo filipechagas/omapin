@@ -63,7 +63,6 @@ export function QuickAddForm() {
   const [showTokenEditor, setShowTokenEditor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [initialClipboardLoading, setInitialClipboardLoading] = useState(false);
-  const [inspectLoading, setInspectLoading] = useState(false);
   const [tagsInputFocused, setTagsInputFocused] = useState(false);
   const [autocompleteDismissed, setAutocompleteDismissed] = useState(false);
   const [activeAutocompleteIndex, setActiveAutocompleteIndex] = useState(0);
@@ -176,10 +175,8 @@ export function QuickAddForm() {
 
   const inspectUrl = async (rawUrl: string, options?: { focusTitleAfterInspect?: boolean }) => {
     const focusTitleAfterInspect = options?.focusTitleAfterInspect ?? false;
-    const inspectStartedAt = performance.now();
     const requestId = inspectRequestRef.current + 1;
     inspectRequestRef.current = requestId;
-    setInspectLoading(true);
 
     const url = rawUrl.trim();
     if (!url || !startsLikeUrl(url)) {
@@ -192,7 +189,6 @@ export function QuickAddForm() {
           setValue("notes", "", { shouldDirty: true });
           setValue("tags", "", { shouldDirty: true });
         }
-        setInspectLoading(false);
         if (focusTitleAfterInspect) {
           window.requestAnimationFrame(() => {
             titleInputRef.current?.focus();
@@ -269,11 +265,6 @@ export function QuickAddForm() {
       });
 
     if (requestId === inspectRequestRef.current) {
-      await Promise.allSettled([dedupePromise, tagsPromise]);
-    }
-
-    if (requestId === inspectRequestRef.current) {
-      setInspectLoading(false);
       if (focusTitleAfterInspect) {
         window.requestAnimationFrame(() => {
           titleInputRef.current?.focus();
@@ -298,8 +289,6 @@ export function QuickAddForm() {
         logInspectTiming("title failed", titleStartedAt);
         // keep non-blocking; user can still enter a title manually
       });
-
-    logInspectTiming("inspect complete", inspectStartedAt);
   };
 
   const tryPrefillFromClipboard = async () => {
@@ -333,13 +322,7 @@ export function QuickAddForm() {
   }, [tokenConfigured]);
 
   useEffect(() => {
-    if (
-      !tokenConfigured ||
-      existingTagsLoaded ||
-      inspectLoading ||
-      initialClipboardLoading ||
-      clipboardPrefillInFlightRef.current
-    ) {
+    if (!tokenConfigured || existingTagsLoaded) {
       return;
     }
 
@@ -354,7 +337,7 @@ export function QuickAddForm() {
     };
 
     void loadExistingTags();
-  }, [existingTagsLoaded, tokenConfigured, inspectLoading, initialClipboardLoading]);
+  }, [existingTagsLoaded, tokenConfigured]);
 
   useEffect(() => {
     const onFocus = () => {
@@ -564,8 +547,7 @@ export function QuickAddForm() {
   };
 
   const shouldShowTokenPanel = !tokenConfigured || showTokenEditor;
-  const formLocked = submitting || inspectLoading || initialClipboardLoading;
-  const showSkeleton = tokenConfigured && (initialClipboardLoading || inspectLoading);
+  const formLocked = submitting;
 
   return (
     <main className="app-shell">
@@ -626,19 +608,8 @@ export function QuickAddForm() {
 
       {tokenConfigured ? (
         <>
-          {showSkeleton ? (
-            <section className="bookmark-skeleton" aria-live="polite" aria-busy="true">
-              <div className="skeleton-line skeleton-line-title" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line skeleton-line-block" />
-              <div className="skeleton-line" />
-              <p>Inspecting URL, loading title, and pulling Pinboard metadata...</p>
-            </section>
-          ) : (
-            <>
-              <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
-                <fieldset className="bookmark-fieldset" disabled={formLocked}>
+          <form className="bookmark-form" onSubmit={handleSubmit(onSubmit)}>
+            <fieldset className="bookmark-fieldset" disabled={formLocked}>
                   <label>
                     <span className="field-label">[url]</span>
                     <input
@@ -739,8 +710,6 @@ export function QuickAddForm() {
                   </div>
                 </fieldset>
               </form>
-            </>
-          )}
         </>
       ) : null}
 
