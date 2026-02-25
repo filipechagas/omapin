@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.3...ommapin-v0.3.0) (2026-02-25)
+
+
+### Features
+
+* hide native window title bar ([f485939](https://github.com/filipechagas/omapin/commit/f48593999866d2358cba80b98be2a3deb9a6a408))
+
+
+### Bug Fixes
+
+* remove queue visualization from quick add ([73078d1](https://github.com/filipechagas/omapin/commit/73078d16d83f1fa30dad2334825f84a1ac26f57e))
+* restore non-blocking quick-add fetch flow ([f970a1a](https://github.com/filipechagas/omapin/commit/f970a1a5ee39bd53b9f29317d2d2438334e30661))
+* speed up quick-add URL inspection ([c4249b9](https://github.com/filipechagas/omapin/commit/c4249b970d652733b889c02aebf55f29f72468f8))
+
 ## [0.2.3](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.2...ommapin-v0.2.3) (2026-02-24)
 
 
