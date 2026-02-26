@@ -146,8 +146,6 @@ const applyOmarchyTheme = (theme: OmarchyTheme) => {
   root.style.setProperty("--tag-divider", mixColors(background, foreground, 0.28));
   root.style.setProperty("--tag-chip-border", withAlpha(accent, 0.42));
   root.style.setProperty("--tag-chip-ink", mixColors(accent, foreground, 0.38));
-  root.style.setProperty("--dedupe-bg-a", withAlpha(warning, 0.22));
-  root.style.setProperty("--dedupe-bg-b", withAlpha(mixColors(background, foreground, 0.05), 0.94));
   root.style.setProperty("--queue-empty-border", mixColors(background, foreground, 0.29));
   root.style.setProperty("--queue-empty-bg", withAlpha(mixColors(background, foreground, 0.06), 0.62));
   root.style.setProperty("--queue-item-border", mixColors(background, foreground, 0.24));

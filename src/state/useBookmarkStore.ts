@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import {
-  DuplicateCheckResult,
   QueueItem,
   QueueStats,
   SessionInfo,
@@ -14,13 +13,11 @@ interface BookmarkState {
   tokenConfigured: boolean;
   queueStats: QueueStats;
   queue: QueueItem[];
-  duplicate?: DuplicateCheckResult;
   suggestions?: TagSuggestions;
   statusMessage: string;
   hydrate: () => Promise<void>;
   refreshQueue: () => Promise<void>;
   setTokenConfigured: (configured: boolean) => void;
-  setDuplicate: (duplicate?: DuplicateCheckResult) => void;
   setSuggestions: (suggestions?: TagSuggestions) => void;
   setStatusMessage: (message: string) => void;
 }
@@ -56,7 +53,6 @@ export const useBookmarkStore = create<BookmarkState>((set) => ({
     set({ queue, queueStats: { pending: queue.length, failed: queue.filter((i) => i.attemptCount > 0).length } });
   },
   setTokenConfigured: (tokenConfigured) => set({ tokenConfigured }),
-  setDuplicate: (duplicate) => set({ duplicate }),
   setSuggestions: (suggestions) => set({ suggestions }),
   setStatusMessage: (statusMessage) => set({ statusMessage }),
 }));

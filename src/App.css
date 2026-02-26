@@ -70,8 +70,6 @@
   --tag-divider: #3a5147;
   --tag-chip-border: rgba(126, 247, 172, 0.42);
   --tag-chip-ink: #caf7dd;
-  --dedupe-bg-a: rgba(52, 45, 27, 0.42);
-  --dedupe-bg-b: rgba(15, 19, 15, 0.94);
   --queue-empty-border: #3e5a4d;
   --queue-empty-bg: rgba(10, 16, 13, 0.62);
   --queue-item-border: #355044;
@@ -229,7 +227,6 @@ header h1 {
 }
 
 .bookmark-form,
-.dedupe-banner,
 .queue-status,
 .token-panel,
 .bookmark-skeleton {
@@ -574,24 +571,6 @@ button:disabled {
   background: transparent;
   border-style: dashed;
   color: var(--muted);
-}
-
-.dedupe-banner {
-  display: grid;
-  gap: 0.5rem;
-  border-left: 4px solid var(--warning);
-  background: linear-gradient(180deg, var(--dedupe-bg-a), var(--dedupe-bg-b));
-}
-
-.dedupe-banner p {
-  margin: 0;
-  font-size: 0.88rem;
-}
-
-.dedupe-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 .queue-empty {

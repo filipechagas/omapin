@@ -14,7 +14,6 @@ import {
   saveToken,
   submitBookmark,
 } from "../../lib/tauri";
-import { DedupeBanner } from "../dedupe/DedupeBanner";
 import { TagSuggestions } from "../tags/TagSuggestions";
 import { useBookmarkStore } from "../../state/useBookmarkStore";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -73,10 +72,8 @@ export function QuickAddForm() {
   const clipboardPrefillInFlightRef = useRef(false);
   const {
     tokenConfigured,
-    duplicate,
     suggestions,
     statusMessage,
-    setDuplicate,
     setSuggestions,
     setStatusMessage,
     setTokenConfigured,
@@ -122,7 +119,6 @@ export function QuickAddForm() {
       readLater: false,
     });
     setIntent("create");
-    setDuplicate(undefined);
     setSuggestions(undefined);
     lastInspectedUrlRef.current = "";
   };
@@ -182,7 +178,7 @@ export function QuickAddForm() {
     if (!url || !startsLikeUrl(url)) {
       lastInspectedUrlRef.current = "";
       if (requestId === inspectRequestRef.current) {
-        setDuplicate(undefined);
+        setIntent("create");
         setSuggestions(undefined);
         if (!url) {
           setValue("title", "", { shouldDirty: true });
@@ -218,7 +214,6 @@ export function QuickAddForm() {
           return;
         }
 
-        setDuplicate(dedupeResult);
         if (dedupeResult.exists && dedupeResult.bookmark) {
           applyExistingBookmark(dedupeResult.bookmark, url);
           loadedExistingBookmark = true;
@@ -233,7 +228,7 @@ export function QuickAddForm() {
           return;
         }
 
-        setDuplicate(undefined);
+        setIntent("create");
         setStatusMessage(`Could not check duplicate URL yet: ${String(error)}`);
       });
 
@@ -475,14 +470,6 @@ export function QuickAddForm() {
     setActiveAutocompleteIndex(0);
   }, [activeAutocompleteIndex, tagAutocompleteOptions.length]);
 
-  const useExistingDuplicate = () => {
-    if (!duplicate?.bookmark) {
-      return;
-    }
-
-    applyExistingBookmark(duplicate.bookmark, getValues("url").trim() || duplicate.bookmark.url);
-  };
-
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
@@ -681,13 +668,6 @@ export function QuickAddForm() {
                       ) : null}
                     </div>
                   </label>
-
-                  <DedupeBanner
-                    duplicate={duplicate}
-                    onUseExisting={useExistingDuplicate}
-                    onUpdate={() => setIntent("update")}
-                    onCreateNew={() => setIntent("create")}
-                  />
 
                   <TagSuggestions suggestions={suggestions} onAddTag={appendTag} onAddAll={addAllSuggested} />
 
