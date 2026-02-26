@@ -46,6 +46,27 @@ jobs:
           manifest-file: .release-please-manifest.json
           target-branch: master
 
+      - name: Auto-merge release PR
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          release_prs="$(gh pr list \
+            --state open \
+            --base master \
+            --label 'autorelease: pending' \
+            --json number,headRefName,author \
+            --jq '.[] | select(.headRefName | startswith("release-please--branches--master")) | select(.author.is_bot == true) | .number')"
+
+          if [ -z "$release_prs" ]; then
+            echo "No auto-release PR found."
+            exit 0
+          fi
+
+          while IFS= read -r pr_number; do
+            [ -z "$pr_number" ] && continue
+            gh pr merge "$pr_number" --merge --delete-branch
+          done <<< "$release_prs"
+
   build-linux-x86_64:
     name: build linux x86_64 asset
     runs-on: ubuntu-latest
