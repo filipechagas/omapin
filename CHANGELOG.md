@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/filipechagas/omapin/compare/ommapin-v0.3.0...ommapin-v0.3.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* auto-switch quick add to update for duplicate URLs ([bffb8dd](https://github.com/filipechagas/omapin/commit/bffb8ddb2f255dd4e37af4800a74838948b1637f))
+
 ## [0.3.0](https://github.com/filipechagas/omapin/compare/ommapin-v0.2.3...ommapin-v0.3.0) (2026-02-25)
 
 
