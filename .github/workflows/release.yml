@@ -51,6 +51,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           release_prs="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
             --state open \
             --base master \
             --label 'autorelease: pending' \
@@ -64,7 +65,7 @@ jobs:
 
           while IFS= read -r pr_number; do
             [ -z "$pr_number" ] && continue
-            gh pr merge "$pr_number" --merge --delete-branch
+            gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge --delete-branch
           done <<< "$release_prs"
 
   build-linux-x86_64:
