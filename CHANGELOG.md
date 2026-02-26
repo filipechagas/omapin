@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/filipechagas/omapin/compare/ommapin-v0.3.1...ommapin-v0.3.2) (2026-02-26)
+
+
+### Bug Fixes
+
+* **ci:** pass repository explicitly to gh in release workflow ([267630e](https://github.com/filipechagas/omapin/commit/267630eec0bf24e1faabb30f28b6e03341c07a71))
+
 ## [0.3.1](https://github.com/filipechagas/omapin/compare/ommapin-v0.3.0...ommapin-v0.3.1) (2026-02-26)
 
 
